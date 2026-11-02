@@ -495,34 +495,42 @@
         }
 
         async function buyPlayer(name) {
-            const sb = getSupabase();
-            if (!sb) return;
+    const sb = getSupabase();
+    if (!sb) return;
 
-            if (!transferWindowOpen) { alert('Transfer window is closed!'); return; }
-            const currentRoster = currentManager.roster || [];
-            if (currentRoster.length >= 10) { alert('Roster full (10 max).'); return; }
-            if (currentManager.trades_left <= 0) { alert('No trades left this week.'); return; }
+    if (!transferWindowOpen) { alert('Transfer window is closed!'); return; }
+    const currentRoster = currentManager.roster || [];
+    if (currentRoster.length >= 10) { alert('Roster full (10 max).'); return; }
 
-            const p = players.find(x => x.name === name);
-            if (!p || currentManager.balance < p.price) { alert('Insufficient budget!'); return; }
+    // ONLY check trades_left if the team ALREADY has a full 10-player roster
+    // (Initial roster setup doesn't consume weekly trades)
+    if (currentRoster.length === 10 && currentManager.trades_left <= 0) { 
+        alert('No trades left this week.'); 
+        return; 
+    }
 
-            const updatedRoster = [...currentRoster, p.name];
-            const updatedBalance = currentManager.balance - p.price;
-            const updatedTrades = currentManager.trades_left - 1;
+    const p = players.find(x => x.name === name);
+    if (!p || currentManager.balance < p.price) { alert('Insufficient budget!'); return; }
 
-            const { data, error } = await sb.from('managers').update({
-                roster: updatedRoster,
-                balance: updatedBalance,
-                trades_left: updatedTrades
-            }).eq('id', currentManager.id).select().single();
+    const updatedRoster = [...currentRoster, p.name];
+    const updatedBalance = currentManager.balance - p.price;
+    
+    // Only deduct a trade if replacing/adjusting after full squad assembly
+    const updatedTrades = currentRoster.length < 10 ? currentManager.trades_left : currentManager.trades_left - 1;
 
-            if (!error && data) {
-                currentManager = data;
-                updateUserData();
-                renderRoster();
-                renderMarket();
-            }
-        }
+    const { data, error } = await sb.from('managers').update({
+        roster: updatedRoster,
+        balance: updatedBalance,
+        trades_left: updatedTrades
+    }).eq('id', currentManager.id).select().single();
+
+    if (!error && data) {
+        currentManager = data;
+        updateUserData();
+        renderRoster();
+        renderMarket();
+    }
+}
 
         async function sellPlayer(name) {
             const sb = getSupabase();
