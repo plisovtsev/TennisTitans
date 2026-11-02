@@ -202,4 +202,396 @@
                     return null;
                 }
             }
-            return supabase
+            return supabaseClient;
+        }
+
+        window.onload = async function() {
+            const sb = getSupabase();
+            if (!sb) return;
+
+            const savedUsername = localStorage.getItem('tennis_current_user');
+            if (savedUsername) {
+                const { data, error } = await sb.from('managers').select('*').eq('username', savedUsername).maybeSingle();
+                if (data) {
+                    currentManager = data;
+                    showDashboard();
+                } else {
+                    showAuth();
+                }
+            } else {
+                showAuth();
+            }
+        };
+
+        function showAuth() {
+            document.getElementById('auth-section').classList.remove('hidden');
+            document.getElementById('dashboard-container').classList.add('hidden');
+            document.getElementById('user-info').classList.add('hidden');
+        }
+
+        async function showDashboard() {
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('dashboard-container').classList.remove('hidden');
+            document.getElementById('user-info').classList.remove('hidden');
+            document.getElementById('nav-username').innerText = currentManager.username;
+
+            if (currentManager.role === 'admin') {
+                document.getElementById('nav-admin-btn').classList.remove('hidden');
+                document.getElementById('admin-indicator').classList.remove('hidden');
+            } else {
+                document.getElementById('nav-admin-btn').classList.add('hidden');
+                document.getElementById('admin-indicator').classList.add('hidden');
+            }
+
+            await fetchPlayers();
+            await fetchManagers();
+            updateUserData();
+            renderRoster();
+            renderMarket();
+            renderLeaderboard();
+        }
+
+        async function fetchPlayers() {
+            const sb = getSupabase();
+            if (!sb) return;
+            const { data, error } = await sb.from('players').select('*');
+            if (!error && data) players = data;
+        }
+
+        async function fetchManagers() {
+            const sb = getSupabase();
+            if (!sb) return;
+            const { data, error } = await sb.from('managers').select('*');
+            if (!error && data) managersList = data;
+        }
+
+        async function handleRegister() {
+            const sb = getSupabase();
+            if (!sb) return;
+
+            const usernameInput = document.getElementById('auth-username');
+            const passwordInput = document.getElementById('auth-password');
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            if (!username || !password) {
+                alert('Please enter both a username and password.');
+                return;
+            }
+
+            const regBtn = document.getElementById('btn-register');
+            regBtn.innerText = 'Registering...';
+            regBtn.disabled = true;
+
+            try {
+                const { data: existing, error: checkError } = await sb.from('managers').select('username').eq('username', username).maybeSingle();
+                if (existing) {
+                    alert('Username is already taken. Please pick another one or log in.');
+                    regBtn.innerText = 'Register';
+                    regBtn.disabled = false;
+                    return;
+                }
+
+                const newManager = {
+                    username: username,
+                    password: password,
+                    role: 'player',
+                    balance: 1500000,
+                    roster: [],
+                    trades_left: 6,
+                    weekly_points: 0,
+                    season_points: 0
+                };
+
+                const { data, error } = await sb.from('managers').insert([newManager]).select().single();
+
+                if (error) {
+                    alert('Registration failed: ' + error.message);
+                } else if (data) {
+                    currentManager = data;
+                    localStorage.setItem('tennis_current_user', currentManager.username);
+                    await showDashboard();
+                }
+            } catch (err) {
+                alert('An unexpected error occurred: ' + err.message);
+            } finally {
+                regBtn.innerText = 'Register';
+                regBtn.disabled = false;
+            }
+        }
+
+        async function handleLogin() {
+            const sb = getSupabase();
+            if (!sb) return;
+
+            const username = document.getElementById('auth-username').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+
+            if (!username || !password) {
+                alert('Please enter your username and password.');
+                return;
+            }
+
+            const { data, error } = await sb.from('managers').select('*').eq('username', username).eq('password', password).maybeSingle();
+            
+            if (error || !data) {
+                alert('Invalid username or password.');
+                return;
+            }
+
+            currentManager = data;
+            localStorage.setItem('tennis_current_user', currentManager.username);
+            await showDashboard();
+        }
+
+        function logout() {
+            currentManager = null;
+            localStorage.removeItem('tennis_current_user');
+            showAuth();
+        }
+
+        function updateUserData() {
+            if (!currentManager) return;
+            document.getElementById('stat-budget').innerText = (currentManager.balance || 0).toLocaleString();
+            document.getElementById('stat-slots').innerText = (currentManager.roster || []).length;
+            document.getElementById('stat-trades').innerText = currentManager.trades_left ?? 6;
+            document.getElementById('nav-balance').innerText = (currentManager.balance || 0).toLocaleString();
+        }
+
+        function switchTab(target) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => {
+                el.classList.remove('bg-amber-500', 'text-slate-950');
+                el.classList.add('bg-slate-900', 'text-slate-400');
+            });
+            document.getElementById('tab-' + target).classList.add('active');
+            const btn = document.querySelector(`[data-target="${target}"]`);
+            if (btn) {
+                btn.classList.remove('bg-slate-900', 'text-slate-400');
+                btn.classList.add('bg-amber-500', 'text-slate-950');
+            }
+        }
+
+        function setTourFilter(tour) {
+            currentTourFilter = tour;
+            document.querySelectorAll('.tour-filter-btn').forEach(b => {
+                if(b.dataset.tour === tour) {
+                    b.classList.remove('bg-slate-800', 'text-slate-300');
+                    b.classList.add('bg-amber-500', 'text-slate-950');
+                } else {
+                    b.classList.add('bg-slate-800', 'text-slate-300');
+                    b.classList.remove('bg-amber-500', 'text-slate-950');
+                }
+            });
+            renderMarket();
+        }
+
+        function renderRoster() {
+            const tbody = document.getElementById('roster-table-body');
+            tbody.innerHTML = '';
+            const rosterList = currentManager.roster || [];
+            if (rosterList.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500">Your roster is empty. Go to Transfer Market to build your team!</td></tr>`;
+                return;
+            }
+
+            rosterList.forEach(name => {
+                const p = players.find(x => x.name === name);
+                if (!p) return;
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="p-3.5 font-medium text-white">${p.name}</td>
+                        <td class="p-3.5"><span class="px-2 py-0.5 text-xs rounded bg-slate-800 text-slate-300 font-mono">${p.tour}</span></td>
+                        <td class="p-3.5 text-slate-400">${p.country || 'N/A'}</td>
+                        <td class="p-3.5 font-mono text-amber-400">$${(p.price || 0).toLocaleString()}</td>
+                        <td class="p-3.5 font-mono">${(p.points || 0).toLocaleString()}</td>
+                        <td class="p-3.5 text-right">
+                            <button onclick="sellPlayer('${p.name}')" class="bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 px-3 py-1 rounded text-xs font-semibold transition cursor-pointer">Sell</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        function renderMarket() {
+            const tbody = document.getElementById('market-table-body');
+            const search = document.getElementById('market-search').value.toLowerCase();
+            tbody.innerHTML = '';
+
+            const filtered = players.filter(p => {
+                const matchTour = currentTourFilter === 'ALL' || p.tour === currentTourFilter;
+                const matchName = p.name.toLowerCase().includes(search);
+                return matchTour && matchName;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500">No players found in database.</td></tr>`;
+                return;
+            }
+
+            const currentRoster = currentManager.roster || [];
+            filtered.forEach(p => {
+                const owned = currentRoster.includes(p.name);
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="p-3.5 font-medium text-white">${p.name}</td>
+                        <td class="p-3.5"><span class="px-2 py-0.5 text-xs rounded bg-slate-800 text-slate-300 font-mono">${p.tour}</span></td>
+                        <td class="p-3.5 text-slate-400">${p.country || 'N/A'}</td>
+                        <td class="p-3.5 font-mono text-amber-400">$${(p.price || 0).toLocaleString()}</td>
+                        <td class="p-3.5 font-mono">${(p.points || 0).toLocaleString()}</td>
+                        <td class="p-3.5 text-right">
+                            ${owned ? '<span class="text-xs text-slate-500 font-semibold">Owned</span>' : `<button onclick="buyPlayer('${p.name}')" class="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded text-xs font-semibold transition cursor-pointer">Buy</button>`}
+                        </td>
+                    </tr>
+                `;
+            });
+        }
+
+        async function buyPlayer(name) {
+            const sb = getSupabase();
+            if (!sb) return;
+
+            if (!transferWindowOpen) { alert('Transfer window is closed!'); return; }
+            const currentRoster = currentManager.roster || [];
+            if (currentRoster.length >= 10) { alert('Roster full (10 max).'); return; }
+            if (currentManager.trades_left <= 0) { alert('No trades left this week.'); return; }
+
+            const p = players.find(x => x.name === name);
+            if (!p || currentManager.balance < p.price) { alert('Insufficient budget!'); return; }
+
+            const updatedRoster = [...currentRoster, p.name];
+            const updatedBalance = currentManager.balance - p.price;
+            const updatedTrades = currentManager.trades_left - 1;
+
+            const { data, error } = await sb.from('managers').update({
+                roster: updatedRoster,
+                balance: updatedBalance,
+                trades_left: updatedTrades
+            }).eq('id', currentManager.id).select().single();
+
+            if (!error && data) {
+                currentManager = data;
+                updateUserData();
+                renderRoster();
+                renderMarket();
+            }
+        }
+
+        async function sellPlayer(name) {
+            const sb = getSupabase();
+            if (!sb) return;
+
+            if (!transferWindowOpen) { alert('Transfer window is closed!'); return; }
+            if (currentManager.trades_left <= 0) { alert('No trades left this week.'); return; }
+
+            const p = players.find(x => x.name === name);
+            if (!p) return;
+
+            const currentRoster = currentManager.roster || [];
+            const updatedRoster = currentRoster.filter(x => x !== name);
+            const updatedBalance = currentManager.balance + p.price;
+            const updatedTrades = currentManager.trades_left - 1;
+
+            const { data, error } = await sb.from('managers').update({
+                roster: updatedRoster,
+                balance: updatedBalance,
+                trades_left: updatedTrades
+            }).eq('id', currentManager.id).select().single();
+
+            if (!error && data) {
+                currentManager = data;
+                updateUserData();
+                renderRoster();
+                renderMarket();
+            }
+        }
+
+        function switchLeaderboardTab(tab) {
+            currentLbTab = tab;
+            document.getElementById('lb-btn-season').className = tab === 'season' ? "px-4 py-2 rounded-lg bg-amber-500 text-slate-950 font-bold text-sm" : "px-4 py-2 rounded-lg bg-slate-900 text-slate-400 font-semibold text-sm";
+            document.getElementById('lb-btn-weekly').className = tab === 'weekly' ? "px-4 py-2 rounded-lg bg-amber-500 text-slate-950 font-bold text-sm" : "px-4 py-2 rounded-lg bg-slate-900 text-slate-400 font-semibold text-sm";
+            document.getElementById('lb-score-header').innerText = tab === 'season' ? "Total Season Points" : "Weekly Points";
+            renderLeaderboard();
+        }
+
+        async function renderLeaderboard() {
+            await fetchManagers();
+            const tbody = document.getElementById('leaderboard-table-body');
+            tbody.innerHTML = '';
+
+            const userList = managersList.map(m => {
+                let portfolioValue = m.balance || 0;
+                (m.roster || []).forEach(rName => {
+                    const found = players.find(pl => pl.name === rName);
+                    if (found) portfolioValue += found.price;
+                });
+                return { username: m.username, portfolioValue, weeklyPoints: m.weekly_points || 0, seasonPoints: m.season_points || 0 };
+            });
+
+            userList.sort((a, b) => currentLbTab === 'season' ? b.seasonPoints - a.seasonPoints : b.weeklyPoints - a.weeklyPoints);
+
+            userList.forEach((item, index) => {
+                const score = currentLbTab === 'season' ? item.seasonPoints : item.weeklyPoints;
+                tbody.innerHTML += `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="p-3.5 font-black text-amber-400">#${index + 1}</td>
+                        <td class="p-3.5 font-medium text-white">${item.username}</td>
+                        <td class="p-3.5 font-mono text-slate-300">$${item.portfolioValue.toLocaleString()}</td>
+                        <td class="p-3.5 font-mono text-right font-bold text-emerald-400">${score.toLocaleString()}</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function toggleTransferWindow() {
+            transferWindowOpen = !transferWindowOpen;
+            const badge = document.getElementById('transfer-badge');
+            const btn = document.getElementById('admin-window-toggle');
+            if (transferWindowOpen) {
+                badge.className = "px-2 py-0.5 text-xs font-semibold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                badge.innerText = "Transfer Window: OPEN";
+                btn.innerText = "Force CLOSED";
+            } else {
+                badge.className = "px-2 py-0.5 text-xs font-semibold rounded bg-red-500/20 text-red-400 border border-red-500/30";
+                badge.innerText = "Transfer Window: CLOSED";
+                btn.innerText = "Force OPEN";
+            }
+        }
+
+        async function processWeeklyIngestion() {
+            const sb = getSupabase();
+            if (!sb) return;
+
+            if (currentManager.role !== 'admin') { alert('Unauthorized!'); return; }
+            const rawText = document.getElementById('admin-csv-input').value.trim();
+            if (!rawText) return;
+
+            const lines = rawText.split('\n');
+            for (let line of lines) {
+                const cols = line.split(',').map(c => c.trim());
+                if (cols.length < 4 || cols[0].toLowerCase().includes('name')) continue;
+
+                let name = cols[0], tour = cols[1].toUpperCase(), country = cols.length >= 5 ? cols[2] : '';
+                let newPoints = parseInt((cols.length >= 5 ? cols[3] : cols[2]).replace(/,/g, '')) || 0;
+                let targetPrice = newPoints * 100;
+
+                const existing = players.find(p => p.name.toLowerCase() === name.toLowerCase());
+                if (existing) {
+                    const maxP = existing.price * 1.15, minP = existing.price * 0.85;
+                    if (targetPrice > maxP) targetPrice = Math.round(maxP);
+                    if (targetPrice < minP) targetPrice = Math.round(minP);
+
+                    await sb.from('players').update({ price: targetPrice, points: newPoints, tour, country }).eq('id', existing.id);
+                } else {
+                    await sb.from('players').insert([{ name, tour: tour === 'WTA' ? 'WTA' : 'ATP', country, price: targetPrice, points: newPoints }]);
+                }
+            }
+
+            await fetchPlayers();
+            renderMarket();
+            renderRoster();
+            alert('Database player market updated successfully!');
+        }
+    </script>
+</body>
+</html>
