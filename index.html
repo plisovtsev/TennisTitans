@@ -494,29 +494,39 @@
             });
         }
 
-        async function buyPlayer(name) {
+       async function buyPlayer(name) {
     const sb = getSupabase();
     if (!sb) return;
 
     if (!transferWindowOpen) { alert('Transfer window is closed!'); return; }
+    
+    // Fetch latest roster directly to prevent state lag
     const currentRoster = currentManager.roster || [];
-    if (currentRoster.length >= 10) { alert('Roster full (10 max).'); return; }
+    const rosterSize = currentRoster.length;
 
-    // ONLY check trades_left if the team ALREADY has a full 10-player roster
-    // (Initial roster setup doesn't consume weekly trades)
-    if (currentRoster.length === 10 && currentManager.trades_left <= 0) { 
+    if (rosterSize >= 10) { 
+        alert('Roster full (10 max).'); 
+        return; 
+    }
+
+    // STRICT RULE: If the squad is NOT full yet (0 to 9 players), 
+    // initial setup buys are completely FREE and DO NOT check trades_left.
+    const isInitialBuild = rosterSize < 10;
+
+    if (!isInitialBuild && currentManager.trades_left <= 0) { 
         alert('No trades left this week.'); 
         return; 
     }
 
     const p = players.find(x => x.name === name);
-    if (!p || currentManager.balance < p.price) { alert('Insufficient budget!'); return; }
+    if (!p) return;
+    if (currentManager.balance < p.price) { alert('Insufficient budget!'); return; }
 
     const updatedRoster = [...currentRoster, p.name];
     const updatedBalance = currentManager.balance - p.price;
     
-    // Only deduct a trade if replacing/adjusting after full squad assembly
-    const updatedTrades = currentRoster.length < 10 ? currentManager.trades_left : currentManager.trades_left - 1;
+    // Keep trades at 6 during initial building phase; deduct only during post-setup transfers
+    const updatedTrades = isInitialBuild ? 6 : currentManager.trades_left - 1;
 
     const { data, error } = await sb.from('managers').update({
         roster: updatedRoster,
@@ -524,7 +534,12 @@
         trades_left: updatedTrades
     }).eq('id', currentManager.id).select().single();
 
-    if (!error && data) {
+    if (error) {
+        alert('Failed to buy player: ' + error.message);
+        return;
+    }
+
+    if (data) {
         currentManager = data;
         updateUserData();
         renderRoster();
