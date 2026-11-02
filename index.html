@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Tennis Manager - Fantasy Circuit</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Teko:wght@600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        tennis: {
+                            green: '#10b981',
+                            court: '#0f382c',
+                            yellow: '#ccff00',
+                            clay: '#d97706',
+                            dark: '#0b0f19',
+                            card: '#111827',
+                            border: '#1f293d',
+                            accent: '#3b82f6'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Teko', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b0f19;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1f293d;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #374151;
+        }
+        .court-bg {
+            background-color: #0d281e;
+            background-image: radial-gradient(#10b981 0.5px, transparent 0.5px), radial-gradient(#10b981 0.5px, #0d281e 0.5px);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+            background-opacity: 0.1;
+        }
+    </style>
+</head>
+<body class="bg-tennis-dark text-slate-100 font-sans min-h-screen flex flex-col selection:bg-tennis-yellow selection:text-black">
+
+    <!-- TOP NAVIGATION / HEADER -->
+    <header class="bg-tennis-card border-b border-tennis-border sticky top-0 z-40 shadow-xl">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <!-- Brand Logo -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-tennis-yellow flex items-center justify-center text-black font-extrabold text-xl shadow-lg shadow-tennis-yellow/20">
+                    <i class="fa-solid font-display text-2xl">TM</i>
+                </div>
+                <div>
+                    <h1 class="font-display text-2xl tracking-wider leading-none text-white">TENNIS MANAGER <span class="text-tennis-yellow text-sm font-sans tracking-normal font-semibold uppercase px-2 py-0.5 rounded bg-tennis-yellow/10 border border-tennis-yellow/30">PRO</span></h1>
+                    <p class="text-xs text-slate-400">Weekly Fantasy Circuit Engine</p>
+                </div>
+            </div>
+
+            <!-- Global Stats Bar -->
+            <div class="hidden md:flex items-center space-x-6 text-sm">
+                <div class="bg-slate-900/80 px-3.5 py-1.5 rounded-lg border border-tennis-border flex items-center space-x-3">
+                    <i class="fa-solid fa-sack-dollar text-emerald-400 text-base"></i>
+                    <div>
+                        <div class="text-[10px] uppercase text-slate-400 font-medium">Available Cash</div>
+                        <div class="font-bold text-emerald-400" id="header-cash">1,000,000</div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 px-3.5 py-1.5 rounded-lg border border-tennis-border flex items-center space-x-3">
+                    <i class="fa-solid fa-chart-line text-blue-400 text-base"></i>
+                    <div>
+                        <div class="text-[10px] uppercase text-slate-400 font-medium">Squad Value</div>
+                        <div class="font-bold text-blue-400" id="header-squad-val">0</div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 px-3.5 py-1.5 rounded-lg border border-tennis-border flex items-center space-x-3">
+                    <i class="fa-solid fa-trophy text-tennis-yellow text-base"></i>
+                    <div>
+                        <div class="text-[10px] uppercase text-slate-400 font-medium">Total Points</div>
+                        <div class="font-bold text-tennis-yellow" id="header-total-pts">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Utility Controls -->
+            <div class="flex items-center space-x-3">
+                <button onclick="toggleModal('time-sim-modal')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 border border-slate-700 flex items-center space-x-2 transition">
+                    <i class="fa-regular fa-clock text-tennis-yellow"></i>
+                    <span id="window-status-pill" class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">OPEN</span>
+                </button>
+
+                <button onclick="toggleModal('admin-modal')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 border border-slate-700 flex items-center space-x-1.5 transition">
+                    <i class="fa-solid fa-sliders text-blue-400"></i>
+                    <span class="hidden sm:inline">Admin Ingest</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- NOTIFICATION TOAST CONTAINER -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+    <!-- MAIN APP WRAPPER -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- STATUS BANNER & TRANSFER SUMMARY -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Transfer Window Banner -->
+            <div class="md:col-span-2 bg-gradient-to-r from-slate-900 via-tennis-card to-slate-900 border border-tennis-border rounded-xl p-4 flex items-center justify-between relative overflow-hidden shadow-md">
+                <div class="space-y-1 relative z-10">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xs font-semibold uppercase text-slate-400">Circuit Status:</span>
+                        <span id="banner-window-badge" class="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                            TRANSFER WINDOW OPEN
+                        </span>
+                    </div>
+                    <div class="text-xs text-slate-300">
+                        Window Schedule: <span class="font-medium text-white">Mon 17:00</span> to <span class="font-medium text-white">Tue 14:00 London Time</span>
+                    </div>
+                    <div id="sim-time-display" class="text-[11px] text-slate-400 font-mono">
+                        Simulated Time: Monday 18:30 London Time
+                    </div>
+                </div>
+                <div class="text-right relative z-10">
+                    <div class="text-xs uppercase text-slate-400 font-medium">Weekly Trades</div>
+                    <div class="text-xl font-bold text-tennis-yellow" id="transfers-left-display">6 / 6 Remaining</div>
+                    <button onclick="toggleModal('time-sim-modal')" class="text-[11px] text-tennis-accent hover:underline mt-0.5 inline-block">
+                        Change Time Simulation
+                    </button>
+                </div>
+            </div>
+
+            <!-- Roster Count Safeguard Card -->
+            <div id="roster-status-card" class="bg-tennis-card border border-tennis-border rounded-xl p-4 flex items-center justify-between shadow-md">
+                <div>
+                    <div class="text-xs uppercase text-slate-400 font-medium">Required Roster</div>
+                    <div class="text-lg font-bold flex items-center space-x-2">
+                        <span id="roster-count-text" class="text-white">0 / 10 Players</span>
+                        <span id="roster-badge" class="text-xs px-2 py-0.5 rounded font-medium bg-red-500/20 text-red-400 border border-red-500/30">INCOMPLETE</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 mt-0.5">Rule: Must hold 10 players at all times</p>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300">
+                    <i class="fa-solid fa-users text-lg"></i>
+                </div>
+            </div>
+
+            <!-- Current Week Stats Overview -->
+            <div class="bg-tennis-card border border-tennis-border rounded-xl p-4 flex items-center justify-between shadow-md">
+                <div>
+                    <div class="text-xs uppercase text-slate-400 font-medium">Current Tournament Week</div>
+                    <div class="text-lg font-bold text-white" id="current-week-display">Week 1 Active</div>
+                    <div class="text-[11px] text-emerald-400 mt-0.5" id="weekly-points-gained">Last Week Points: +0 pts</div>
+                </div>
+                <div class="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-tennis-yellow">
+                    <i class="fa-solid fa-calendar-week text-lg"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- MAIN LAYOUT: ACTIVE SQUAD (TOP) & MARKET DIRECTORY (BOTTOM/SIDE) -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <!-- LEFT COLUMN: SQUAD ROSTER (5 COLS) -->
+            <div class="lg:col-span-5 space-y-4">
+                <div class="bg-tennis-card border border-tennis-border rounded-xl overflow-hidden shadow-lg">
+                    <!-- Section Header -->
+                    <div class="bg-slate-900/80 px-4 py-3 border-b border-tennis-border flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <i class="fa-solid fa-shirt text-tennis-yellow"></i>
+                            <h2 class="font-bold text-white text-sm uppercase tracking-wide">My Active 10-Player Squad</h2>
+                        </div>
+                        <span class="text-xs bg-slate-800 px-2.5 py-1 rounded-full border border-slate-700 text-slate-300 font-medium" id="squad-value-sub">
+                            Value: 0
+                        </span>
+                    </div>
+
+                    <!-- Squad Court / Card Grid View -->
+                    <div class="p-4 space-y-2 max-h-[680px] overflow-y-auto" id="squad-container">
+                        <!-- Dynamic Population -->
+                    </div>
+
+                    <!-- Squad Footer Summary -->
+                    <div class="bg-slate-900/90 px-4 py-3 border-t border-tennis-border text-xs flex justify-between text-slate-400">
+                        <span>Min budget enforced</span>
+                        <span>Capital Gains Active</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT COLUMN: MARKETPLACE & PLAYER DIRECTORY (7 COLS) -->
+            <div class="lg:col-span-7 space-y-4">
+                <div class="bg-tennis-card border border-tennis-border rounded-xl overflow-hidden shadow-lg flex flex-col h-full">
+                    
+                    <!-- Market Controls Header -->
+                    <div class="bg-slate-900/80 p-4 border-b border-tennis-border space-y-3">
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div class="flex items-center space-x-2">
+                                <i class="fa-solid fa-store text-emerald-400"></i>
+                                <h2 class="font-bold text-white text-sm uppercase tracking-wide">Global Market Directory</h2>
+                                <span class="text-xs bg-slate-800 px-2 py-0.5 rounded text-slate-400 border border-slate-700" id="market-total-count">400 Players</span>
+                            </div>
+
+                            <!-- Tour Filter Buttons -->
+                            <div class="flex items-center bg-slate-950 p-1 rounded-lg border border-slate-800 self-start sm:self-auto">
+                                <button onclick="setGenderFilter('ALL')" id="filter-all" class="px-2.5 py-1 text-xs font-semibold rounded-md bg-tennis-accent text-white transition">All</button>
+                                <button onclick="setGenderFilter('ATP')" id="filter-atp" class="px-2.5 py-1 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition">ATP (Men)</button>
+                                <button onclick="setGenderFilter('WTA')" id="filter-wta" class="px-2.5 py-1 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition">WTA (Women)</button>
+                            </div>
+                        </div>
+
+                        <!-- Search and Sort Bar -->
+                        <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                            <div class="sm:col-span-7 relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                                <input type="text" id="market-search" oninput="renderMarket()" placeholder="Search player by name or country..." class="w-full bg-slate-950 border border-slate-800 text-xs rounded-lg pl-8 pr-3 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-tennis-accent">
+                            </div>
+                            <div class="sm:col-span-5 flex items-center space-x-2">
+                                <span class="text-xs text-slate-400 whitespace-nowrap">Sort:</span>
+                                <select id="market-sort" onchange="renderMarket()" class="w-full bg-slate-950 border border-slate-800 text-xs rounded-lg px-2 py-2 text-white focus:outline-none focus:border-tennis-accent">
+                                    <option value="price-desc">Price: High to Low</option>
+                                    <option value="price-asc">Price: Low to High</option>
+                                    <option value="points-desc">Weekly Points: High to Low</option>
+                                    <option value="rank-asc">Tour Rank: Top First</option>
+                                    <option value="name-asc">Name: A to Z</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Market Players Table Container -->
+                    <div class="p-2 overflow-x-auto overflow-y-auto max-h-[580px] flex-1">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-950/60 text-slate-400 text-[11px] uppercase tracking-wider sticky top-0 z-10 backdrop-blur">
+                                <tr>
+                                    <th class="py-2.5 px-3">Player</th>
+                                    <th class="py-2.5 px-2">Tour</th>
+                                    <th class="py-2.5 px-2 text-right">Points</th>
+                                    <th class="py-2.5 px-2 text-right">Last Wk Pts</th>
+                                    <th class="py-2.5 px-3 text-right">Market Price</th>
+                                    <th class="py-2.5 px-3 text-center">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="market-table-body" class="divide-y divide-slate-800/60">
+                                <!-- Dynamic Rows -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination / Status Footer -->
+                    <div class="bg-slate-900/90 px-4 py-2.5 border-t border-tennis-border text-xs flex items-center justify-between text-slate-400">
+                        <span id="market-page-info">Showing top matches</span>
+                        <div class="flex items-center space-x-1 text-[11px]">
+                            <i class="fa-solid fa-circle-info text-slate-500"></i>
+                            <span>Prices update weekly (Max ±15% cap rule applied)</span>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- ADMIN & DATA INGESTION MODAL -->
+    <div id="admin-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-tennis-card border border-tennis-border rounded-2xl max-w-2xl w-full overflow-hidden shadow-2xl">
+            <div class="bg-slate-900 px-6 py-4 border-b border-tennis-border flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-database text-blue-400 text-lg"></i>
+                    <h3 class="font-bold text-white text-base">Weekly Market Data Ingestion (Admin)</h3>
+                </div>
+                <button onclick="toggleModal('admin-modal')" class="text-slate-400 hover:text-white text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4 max-h-[80vh] overflow-y-auto text-xs">
+                <p class="text-slate-300 leading-relaxed">
+                    Paste CSV or tab-separated data for new tournament weeks. The system will process weekly player performance points, update total points, and recalculate player market prices with the <strong>15% maximum change cap rule</strong> enforced automatically.
+                </p>
+
+                <!-- Data Format Guidelines -->
+                <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-slate-400 font-mono text-[11px] space-y-1">
+                    <div class="text-tennis-yellow font-sans font-bold">Expected CSV/Text Format:</div>
+                    <div>Name, Gender, Country, ATP_WTA_Points, Weekly_Perf_Points</div>
+                    <div class="text-slate-500">Example: Jannik Sinner, ATP, ITA, 9500, 1000</div>
+                    <div class="text-slate-500">Example: Aryna Sabalenka, WTA, BLR, 9100, 800</div>
+                </div>
+
+                <!-- Input Textarea -->
+                <div>
+                    <label class="block text-slate-300 font-medium mb-1">Paste CSV / Dataset Text:</label>
+                    <textarea id="csv-paste-input" rows="8" placeholder="Paste 400 rows or sample player updates here..." class="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-mono text-xs text-white placeholder-slate-600 focus:outline-none focus:border-tennis-accent"></textarea>
+                </div>
+
+                <!-- Fast Actions / Demo Presets -->
+                <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                    <div class="space-x-2">
+                        <button onclick="loadSampleWeek2()" class="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                            Load Demo Week 2 Results
+                        </button>
+                        <button onclick="loadSampleWeek3()" class="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
+                            Load Demo Week 3 Results
+                        </button>
+                    </div>
+
+                    <button onclick="processIngestedData()" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition flex items-center space-x-2">
+                        <i class="fa-solid fa-play"></i>
+                        <span>Process Weekly Update</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TIME SIMULATION CONTROL MODAL -->
+    <div id="time-sim-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-tennis-card border border-tennis-border rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
+            <div class="bg-slate-900 px-6 py-4 border-b border-tennis-border flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-regular fa-clock text-tennis-yellow text-lg"></i>
+                    <h3 class="font-bold text-white text-base">Transfer Window Schedule Control</h3>
+                </div>
+                <button onclick="toggleModal('time-sim-modal')" class="text-slate-400 hover:text-white text-lg">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-4 text-xs">
+                <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-slate-300 space-y-2">
+                    <div class="font-bold text-white text-sm">Official Transfer Window Rules:</div>
+                    <ul class="list-disc pl-4 space-y-1 text-slate-400">
+                        <li><strong>OPENS:</strong> Monday at 17:00 London Time</li>
+                        <li><strong>CLOSES:</strong> Tuesday at 14:00 London Time</li>
+                        <li>Transfers outside this window are strictly locked.</li>
+                    </ul>
+                </div>
+
+                <div class="space-y-3 pt-2">
+                    <label class="block text-slate-300 font-medium">Select Simulated Circuit Time:</label>
+                    <div class="space-y-2">
+                        <button onclick="setSimulatedTime('MON_OPEN')" class="w-full text-left p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-emerald-500/50 flex items-center justify-between group transition">
+                            <div>
+                                <div class="font-bold text-white group-hover:text-emerald-400">Monday 18:00 London Time</div>
+                                <div class="text-[11px] text-slate-500">Inside Transfer Window</div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">OPEN</span>
+                        </button>
+
+                        <button onclick="setSimulatedTime('TUE_OPEN')" class="w-full text-left p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-emerald-500/50 flex items-center justify-between group transition">
+                            <div>
+                                <div class="font-bold text-white group-hover:text-emerald-400">Tuesday 10:00 London Time</div>
+                                <div class="text-[11px] text-slate-500">Inside Transfer Window</div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">OPEN</span>
+                        </button>
+
+                        <button onclick="setSimulatedTime('WED_CLOSED')" class="w-full text-left p-3 rounded-lg bg-slate-900 border border-slate-800 hover:border-red-500/50 flex items-center justify-between group transition">
+                            <div>
+                                <div class="font-bold text-white group-hover:text-red-400">Wednesday 15:00 London Time</div>
+                                <div class="text-[11px] text-slate-500">Outside Window (Locked Circuit)</div>
+                            </div>
+                            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">CLOSED</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT GAME ENGINE LOGIC -->
+    <script>
+        // ==========================================
+        // 1. GAME DATA STATE
+        // ==========================================
+        const INITIAL_CASH = 1000000;
+        const ROSTER_SIZE = 10;
+        const MAX_TRANSFERS_PER_WEEK = 6;
+        const MIN_PRICE_FLOOR = 25000;
+
+        let gameState = {
+            userCash: INITIAL_CASH,
+            squad: [], // List of player IDs owned
+            squadBuyPrices: {}, // Map playerId -> price at time of buy
+            weeklyTransfersUsed: 0,
+            currentWeek: 1,
+            totalScore: 0,
+            lastWeekScore: 0,
+            simulatedTimeKey: 'MON_OPEN', // MON_OPEN, TUE_OPEN, WED_CLOSED
+            isWindowOpen: true,
+            simulatedTimeLabel: 'Monday 18:30 London Time'
+        };
+
+        let playersData = []; // Master list of 400 players
+        let genderFilter = 'ALL';
+
+        // ==========================================
+        // 2. SAMPLE 400 PLAYER GENERATOR (PRE-POPULATION)
+        // ==========================================
+        const MALE_NAMES = [
+            "Jannik Sinner", "Alexander Zverev", "Carlos Alcaraz", "Novak Djokovic", "Daniil Medvedev",
+            "Casper Ruud", "Andrey Rublev", "Stefanos Tsitsipas", "Hubert Hurkacz", "Alex de Minaur",
+            "Grigor Dimitrov", "Taylor Fritz", "Tommy Paul", "Holger Rune", "Ugo Humbert",
+            "Lorenzo Musetti", "Sebastian Korda", "Frances Tiafoe", "Felix Auger-Aliassime", "Arthur Fils",
+            "Alejandro Tabilo", "Karen Khachanov", "Sebastian Baez", "Alexander Bublik", "Jiří Lehečka",
+            "Jack Draper", "Nicolas Jarry", "Jordan Thompson", "Alexei Popyrin", "Matteo Arnaldi",
+            "Flavio Cobolli", "Jan-Lennard Struff", "Luciano Darderi", "Tomas Martin Etcheverry", "Tallon Griekspoor",
+            "Zhang Zhizhen", "Mariano Navone", "Nuno Borges", "Cameron Norrie", "Gael Monfils"
+        ];
+
+        const FEMALE_NAMES = [
+            "Aryna Sabalenka", "Iga Świątek", "Coco Gauff", "Jasmine Paolini", "Elena Rybakina",
+            "Jessica Pegula", "Zheng Qinwen", "Emma Navarro", "Daria Kasatkina", "Barbora Krejčíková",
+            "Stefanie Vögele", "Diana Shnaider", "Anna Kalinskaya", "Jelena Ostapenko", "Beatriz Haddad Maia",
+            "Marta Kostyuk", "Donna Vekić", "Paula Badosa", "Victoria Azarenka", "Madison Keys",
+            "Karolína Muchová", "Mirra Andreeva", "Elina Svitolina", "Caroline Garcia", "Dayana Yastremska",
+            "Leylah Fernandez", "Kateřina Siniaková", "Anastasia Pavlyuchenkova", "Yulia Putintseva", "Anhelina Kalinina",
+            "Magda Linette", "Elise Mertens", "Marie Bouzková", "Sofia Kenin", "Peyton Stearns",
+            "Lucia Bronzetti", "Viktoriya Tomova", "Tatjana Maria", "Sara Sorribes Tormo", "Arantxa Rus"
+        ];
+
+        const COUNTRIES = ["ITA", "ESP", "USA", "GER", "SRB", "POL", "KAZ", "FRA", "AUS", "CZE", "BLR", "CHN", "GRE", "NOR", "ARG", "CAN", "UKR", "BRA"];
+
+        function generate400Players() {
+            let list = [];
+            let idCounter = 1;
+
+            // Generate Top Men (200)
+            for (let i = 0; i < 200; i++) {
+                let name = i < MALE_NAMES.length ? MALE_NAMES[i] : `ATP Player #${i + 1}`;
+                let country = COUNTRIES[i % COUNTRIES.length];
+                // Exponential ranking curve
+                let points = Math.max(250, Math.round(9500 * Math.pow(0.978, i)));
+                let initialPrice = points * 100;
+
+                list.push({
+                    id: `ATP_${idCounter++}`,
+                    name: name,
+                    gender: 'ATP',
+                    country: country,
+                    rank: i + 1,
+                    points: points,
+                    lastWeekPerf: 0,
+                    price: initialPrice,
+                    prevPrice: initialPrice
+                });
+            }
+
+            // Generate Top Women (200)
+            for (let i = 0; i < 200; i++) {
+                let name = i < FEMALE_NAMES.length ? FEMALE_NAMES[i] : `WTA Player #${i + 1}`;
+                let country = COUNTRIES[(i + 3) % COUNTRIES.length];
+                let points = Math.max(250, Math.round(9100 * Math.pow(0.978, i)));
+                let initialPrice = points * 100;
+
+                list.push({
+                    id: `WTA_${idCounter++}`,
+                    name: name,
+                    gender: 'WTA',
+                    country: country,
+                    rank: i + 1,
+                    points: points,
+                    lastWeekPerf: 0,
+                    price: initialPrice,
+                    prevPrice: initialPrice
+                });
+            }
+
+            return list;
+        }
+
+        // ==========================================
+        // 3. CORE LOGIC ENGINE
+        // ==========================================
+
+        function initApp() {
+            playersData = generate400Players();
+            loadLocalStorage();
+            updateSimulatedTimeState();
+            renderAll();
+            showToast("Welcome to Tennis Manager Pro! Draft your 10-player squad.", "info");
+        }
+
+        function renderAll() {
+            renderHeaderAndBanners();
+            renderSquad();
+            renderMarket();
+        }
+
+        function renderHeaderAndBanners() {
+            // Cash and squad totals
+            let squadVal = gameState.squad.reduce((sum, id) => {
+                let p = playersData.find(x => x.id === id);
+                return sum + (p ? p.price : 0);
+            }, 0);
+
+            document.getElementById('header-cash').innerText = gameState.userCash.toLocaleString() + " cr";
+            document.getElementById('header-squad-val').innerText = squadVal.toLocaleString() + " cr";
+            document.getElementById('header-total-pts').innerText = gameState.totalScore.toLocaleString() + " pts";
+            document.getElementById('squad-value-sub').innerText = `Squad: ${squadVal.toLocaleString()} cr`;
+
+            // Transfers & Week
+            document.getElementById('transfers-left-display').innerText = `${MAX_TRANSFERS_PER_WEEK - gameState.weeklyTransfersUsed} / ${MAX_TRANSFERS_PER_WEEK} Left`;
+            document.getElementById('current-week-display').innerText = `Week ${gameState.currentWeek} Active`;
+            document.getElementById('weekly-points-gained').innerText = `Last Week Score: +${gameState.lastWeekScore} pts`;
+
+            // Roster status safeguard
+            let squadCount = gameState.squad.length;
+            document.getElementById('roster-count-text').innerText = `${squadCount} / ${ROSTER_SIZE} Players`;
+            
+            let badge = document.getElementById('roster-badge');
+            if (squadCount === ROSTER_SIZE) {
+                badge.className = "text-xs px-2 py-0.5 rounded font-medium bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                badge.innerText = "COMPLETE";
+            } else {
+                badge.className = "text-xs px-2 py-0.5 rounded font-medium bg-red-500/20 text-red-400 border border-red-500/30";
+                badge.innerText = `NEED ${ROSTER_SIZE - squadCount} MORE`;
+            }
+
+            // Time window status
+            let statusPill = document.getElementById('window-status-pill');
+            let bannerBadge = document.getElementById('banner-window-badge');
+            document.getElementById('sim-time-display').innerText = `Simulated Time: ${gameState.simulatedTimeLabel}`;
+
+            if (gameState.isWindowOpen) {
+                statusPill.className = "px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                statusPill.innerText = "OPEN";
+
+                bannerBadge.className = "px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                bannerBadge.innerText = "TRANSFER WINDOW OPEN";
+            } else {
+                statusPill.className = "px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/30";
+                statusPill.innerText = "CLOSED";
+
+                bannerBadge.className = "px-2 py-0.5 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30";
+                bannerBadge.innerText = "TRANSFER WINDOW LOCKED";
+            }
+        }
+
+        // RENDER ACTIVE SQUAD
+        function renderSquad() {
+            const container = document.getElementById('squad-container');
+            container.innerHTML = '';
+
+            if (gameState.squad.length === 0) {
+                container.innerHTML = `
+                    <div class="text-center py-12 px-4 border-2 border-dashed border-slate-800 rounded-xl">
+                        <i class="fa-solid fa-tennis-ball text-3xl text-slate-600 mb-2"></i>
+                        <div class="text-sm font-bold text-slate-300">Your Squad is Empty</div>
+                        <p class="text-xs text-slate-500 mt-1">Select 10 players from the market directory to participate in weekly matches.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            gameState.squad.forEach((id, index) => {
+                let p = playersData.find(x => x.id === id);
+                if (!p) return;
+
+                let boughtPrice = gameState.squadBuyPrices[id] || p.price;
+                let profitLoss = p.price - boughtPrice;
+                let plClass = profitLoss > 0 ? 'text-emerald-400' : (profitLoss < 0 ? 'text-red-400' : 'text-slate-400');
+                let plSign = profitLoss > 0 ? '+' : '';
+
+                let cardHtml = `
+                    <div class="bg-slate-900 border border-slate-800 hover:border-slate-700 rounded-xl p-3 flex items-center justify-between transition shadow-sm">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-8 h-8 rounded-lg ${p.gender === 'ATP' ? 'bg-blue-600/20 text-blue-400 border-blue-500/30' : 'bg-pink-600/20 text-pink-400 border-pink-500/30'} border flex items-center justify-center font-bold text-xs">
+                                ${p.gender}
+                            </div>
+                            <div>
+                                <div class="font-bold text-white text-xs flex items-center space-x-1.5">
+                                    <span>${p.name}</span>
+                                    <span class="text-[10px] text-slate-500 font-normal">(${p.country})</span>
+                                </div>
+                                <div class="text-[11px] text-slate-400 flex items-center space-x-3 mt-0.5">
+                                    <span>Points: <strong class="text-slate-200">${p.points.toLocaleString()}</strong></span>
+                                    <span>Last Wk: <strong class="text-tennis-yellow">+${p.lastWeekPerf}</strong></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-3 text-right">
+                            <div>
+                                <div class="font-bold text-xs text-white">${p.price.toLocaleString()} cr</div>
+                                <div class="text-[10px] ${plClass} font-medium">
+                                    Value Gain: ${plSign}${profitLoss.toLocaleString()}
+                                </div>
+                            </div>
+                            <button onclick="sellPlayer('${p.id}')" class="px-2.5 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 hover:text-red-300 font-semibold text-xs transition flex items-center space-x-1">
+                                <i class="fa-solid fa-minus"></i>
+                                <span>Sell</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', cardHtml);
+            });
+        }
+
+        // RENDER MARKET DIRECTORY
+        function renderMarket() {
+            const tbody = document.getElementById('market-table-body');
+            tbody.innerHTML = '';
+
+            const searchVal = document.getElementById('market-search').value.toLowerCase();
+            const sortVal = document.getElementById('market-sort').value;
+
+            // Filter
+            let filtered = playersData.filter(p => {
+                if (genderFilter !== 'ALL' && p.gender !== genderFilter) return false;
+                if (searchVal && !p.name.toLowerCase().includes(searchVal) && !p.country.toLowerCase().includes(searchVal)) return false;
+                return true;
+            });
+
+            // Sort
+            filtered.sort((a, b) => {
+                if (sortVal === 'price-desc') return b.price - a.price;
+                if (sortVal === 'price-asc') return a.price - b.price;
+                if (sortVal === 'points-desc') return b.lastWeekPerf - a.lastWeekPerf;
+                if (sortVal === 'rank-asc') return a.rank - b.rank;
+                if (sortVal === 'name-asc') return a.name.localeCompare(b.name);
+                return 0;
+            });
+
+            document.getElementById('market-total-count').innerText = `${filtered.length} Players`;
+            document.getElementById('market-page-info').innerText = `Showing ${Math.min(100, filtered.length)} of ${filtered.length} players`;
+
+            // Display Top 100 of filtered set for fast performance
+            filtered.slice(0, 100).forEach(p => {
+                let isOwned = gameState.squad.includes(p.id);
+                let priceDiff = p.price - p.prevPrice;
+                let changePct = p.prevPrice > 0 ? ((priceDiff / p.prevPrice) * 100).toFixed(1) : 0;
+                let changeClass = priceDiff > 0 ? 'text-emerald-400' : (priceDiff < 0 ? 'text-red-400' : 'text-slate-500');
+                let changeSign = priceDiff > 0 ? '+' : '';
+
+                let tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-900/60 transition border-b border-slate-800/40";
+
+                tr.innerHTML = `
+                    <td class="py-2.5 px-3">
+                        <div class="font-bold text-white">${p.name}</div>
+                        <div class="text-[10px] text-slate-500">Rank #${p.rank} • ${p.country}</div>
+                    </td>
+                    <td class="py-2.5 px-2">
+                        <span class="px-1.5 py-0.5 rounded text-[10px] font-bold ${p.gender === 'ATP' ? 'bg-blue-500/20 text-blue-400' : 'bg-pink-500/20 text-pink-400'}">
+                            ${p.gender}
+                        </span>
+                    </td>
+                    <td class="py-2.5 px-2 text-right font-medium text-slate-300">${p.points.toLocaleString()}</td>
+                    <td class="py-2.5 px-2 text-right font-bold text-tennis-yellow">+${p.lastWeekPerf}</td>
+                    <td class="py-2.5 px-3 text-right">
+                        <div class="font-bold text-white">${p.price.toLocaleString()} cr</div>
+                        <div class="text-[10px] ${changeClass}">${changeSign}${changePct}%</div>
+                    </td>
+                    <td class="py-2.5 px-3 text-center">
+                        ${isOwned ? `
+                            <button onclick="sellPlayer('${p.id}')" class="px-2.5 py-1 rounded bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-semibold hover:bg-red-500/30 transition">
+                                Sell
+                            </button>
+                        ` : `
+                            <button onclick="buyPlayer('${p.id}')" class="px-2.5 py-1 rounded bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 text-xs font-semibold hover:bg-emerald-600/30 transition">
+                                Buy
+                            </button>
+                        `}
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ==========================================
+        // 4. BUY & SELL TRANSACTION LOGIC
+        // ==========================================
+
+        function buyPlayer(id) {
+            // Check 1: Transfer window status
+            if (!gameState.isWindowOpen) {
+                showToast("Transfer window is currently CLOSED! Transfers allowed Mon 17:00 - Tue 14:00 London Time.", "error");
+                return;
+            }
+
+            // Check 2: Transfer Cap
+            if (gameState.weeklyTransfersUsed >= MAX_TRANSFERS_PER_WEEK) {
+                showToast(`Weekly trade limit reached (${MAX_TRANSFERS_PER_WEEK}/${MAX_TRANSFERS_PER_WEEK} trades used).`, "error");
+                return;
+            }
+
+            // Check 3: Roster Cap
+            if (gameState.squad.length >= ROSTER_SIZE) {
+                showToast("Squad is already full (10/10). Sell a player first!", "error");
+                return;
+            }
+
+            let p = playersData.find(x => x.id === id);
+            if (!p) return;
+
+            // Check 4: Budget
+            if (gameState.userCash < p.price) {
+                showToast(`Insufficient funds! You need ${p.price.toLocaleString()} cr but only have ${gameState.userCash.toLocaleString()} cr.`, "error");
+                return;
+            }
+
+            // Execute Buy
+            gameState.userCash -= p.price;
+            gameState.squad.push(p.id);
+            gameState.squadBuyPrices[p.id] = p.price; // track baseline buy price
+            gameState.weeklyTransfersUsed++;
+
+            saveLocalStorage();
+            renderAll();
+            showToast(`Bought ${p.name} for ${p.price.toLocaleString()} cr!`, "success");
+        }
+
+        function sellPlayer(id) {
+            // Check 1: Transfer window status
+            if (!gameState.isWindowOpen) {
+                showToast("Transfer window is currently CLOSED! Transfers allowed Mon 17:00 - Tue 14:00 London Time.", "error");
+                return;
+            }
+
+            // Check 2: Transfer Cap
+            if (gameState.weeklyTransfersUsed >= MAX_TRANSFERS_PER_WEEK) {
+                showToast(`Weekly trade limit reached (${MAX_TRANSFERS_PER_WEEK}/${MAX_TRANSFERS_PER_WEEK} trades used).`, "error");
+                return;
+            }
+
+            let p = playersData.find(x => x.id === id);
+            if (!p) return;
+
+            // Execute Sell at CURRENT dynamic price (Capital Gains/Loss)
+            gameState.userCash += p.price;
+            gameState.squad = gameState.squad.filter(x => x !== id);
+            delete gameState.squadBuyPrices[id];
+            gameState.weeklyTransfersUsed++;
+
+            saveLocalStorage();
+            renderAll();
+            showToast(`Sold ${p.name} for ${p.price.toLocaleString()} cr. Cash updated!`, "info");
+        }
+
+        // ==========================================
+        // 5. WEEKLY DATA INGESTION & 15% CAP FORMULA
+        // ==========================================
+
+        function processIngestedData() {
+            const rawText = document.getElementById('csv-paste-input').value.trim();
+            if (!rawText) {
+                showToast("Please paste CSV dataset text before processing.", "error");
+                return;
+            }
+
+            const lines = rawText.split('\n');
+            let updatedCount = 0;
+
+            lines.forEach(line => {
+                let cols = line.split(',').map(c => c.trim());
+                if (cols.length < 4) return;
+
+                let name = cols[0];
+                let points = parseInt(cols[3]) || 0;
+                let weeklyPerf = parseInt(cols[4]) || 0;
+
+                let p = playersData.find(x => x.name.toLowerCase() === name.toLowerCase());
+                if (p) {
+                    p.prevPrice = p.price;
+                    p.points = points;
+                    p.lastWeekPerf = weeklyPerf;
+
+                    // ----------------------------------------------------
+                    // 15% MAXIMUM WEEKLY CHANGE CAP FORMULA
+                    // ----------------------------------------------------
+                    let rawCalculatedPrice = points * 100;
+                    let maxAllowedIncrease = p.prevPrice * 1.15; // +15%
+                    let minAllowedDecrease = p.prevPrice * 0.85; // -15%
+
+                    // Apply bounds
+                    let boundedPrice = Math.min(rawCalculatedPrice, maxAllowedIncrease);
+                    boundedPrice = Math.max(boundedPrice, minAllowedDecrease);
+                    boundedPrice = Math.max(boundedPrice, MIN_PRICE_FLOOR); // Min Floor safeguard
+
+                    p.price = Math.round(boundedPrice);
+                    updatedCount++;
+                }
+            });
+
+            // Process squad score for the week
+            let weeklySquadPts = 0;
+            gameState.squad.forEach(id => {
+                let p = playersData.find(x => x.id === id);
+                if (p) {
+                    weeklySquadPts += p.lastWeekPerf;
+                }
+            });
+
+            gameState.lastWeekScore = weeklySquadPts;
+            gameState.totalScore += weeklySquadPts;
+            gameState.currentWeek++;
+            gameState.weeklyTransfersUsed = 0; // Reset weekly trade allowance
+
+            toggleModal('admin-modal');
+            saveLocalStorage();
+            renderAll();
+
+            showToast(`Ingested updates for ${updatedCount} players! Squad scored +${weeklySquadPts} pts in Week ${gameState.currentWeek - 1}.`, "success");
+        }
+
+        // PRESET DEMO DATA FOR WEEKS 2 AND 3
+        function loadSampleWeek2() {
+            let sample = [
+                "Jannik Sinner, ATP, ITA, 9800, 1000",
+                "Carlos Alcaraz, ATP, ESP, 6500, 800",
+                "Alexander Zverev, ATP, GER, 9400, 500",
+                "Aryna Sabalenka, WTA, BLR, 9300, 1000",
+                "Iga Świątek, WTA, POL, 8100, 600",
+                "Coco Gauff, WTA, USA, 5500, 400",
+                "Novak Djokovic, ATP, SRB, 4200, 300",
+                "Ben Shelton, ATP, USA, 4600, 250"
+            ].join("\n");
+            document.getElementById('csv-paste-input').value = sample;
+        }
+
+        function loadSampleWeek3() {
+            let sample = [
+                "Jannik Sinner, ATP, ITA, 10200, 1000",
+                "Carlos Alcaraz, ATP, ESP, 7200, 1000",
+                "Daniil Medvedev, ATP, RUS, 4100, 400",
+                "Aryna Sabalenka, WTA, BLR, 9000, 300",
+                "Jasmine Paolini, WTA, ITA, 5000, 500",
+                "Emma Navarro, WTA, USA, 3900, 350"
+            ].join("\n");
+            document.getElementById('csv-paste-input').value = sample;
+        }
+
+        // ==========================================
+        // 6. SIMULATION CONTROL & UTILITIES
+        // ==========================================
+
+        function setSimulatedTime(timeKey) {
+            gameState.simulatedTimeKey = timeKey;
+            updateSimulatedTimeState();
+            toggleModal('time-sim-modal');
+            renderAll();
+            showToast(`Time simulated to: ${gameState.simulatedTimeLabel}`, "info");
+        }
+
+        function updateSimulatedTimeState() {
+            if (gameState.simulatedTimeKey === 'MON_OPEN') {
+                gameState.isWindowOpen = true;
+                gameState.simulatedTimeLabel = 'Monday 18:30 London Time';
+            } else if (gameState.simulatedTimeKey === 'TUE_OPEN') {
+                gameState.isWindowOpen = true;
+                gameState.simulatedTimeLabel = 'Tuesday 10:00 London Time';
+            } else if (gameState.simulatedTimeKey === 'WED_CLOSED') {
+                gameState.isWindowOpen = false;
+                gameState.simulatedTimeLabel = 'Wednesday 15:00 London Time';
+            }
+        }
+
+        function setGenderFilter(gen) {
+            genderFilter = gen;
+            ['all', 'atp', 'wta'].forEach(g => {
+                let btn = document.getElementById(`filter-${g}`);
+                if (g.toUpperCase() === gen) {
+                    btn.className = "px-2.5 py-1 text-xs font-semibold rounded-md bg-tennis-accent text-white transition";
+                } else {
+                    btn.className = "px-2.5 py-1 text-xs font-semibold rounded-md text-slate-400 hover:text-white transition";
+                }
+            });
+            renderMarket();
+        }
+
+        function toggleModal(id) {
+            let el = document.getElementById(id);
+            if (el) el.classList.toggle('hidden');
+        }
+
+        function showToast(msg, type = "info") {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+
+            let bg = "bg-slate-900 border-slate-700 text-white";
+            if (type === "success") bg = "bg-emerald-950 border-emerald-500 text-emerald-200";
+            if (type === "error") bg = "bg-red-950 border-red-500 text-red-200";
+
+            toast.className = `pointer-events-auto p-3 rounded-xl border text-xs font-medium shadow-xl flex items-center space-x-2 transition transform duration-300 translate-y-2 ${bg}`;
+            toast.innerHTML = `
+                <i class="fa-solid ${type === 'success' ? 'fa-circle-check text-emerald-400' : (type === 'error' ? 'fa-triangle-exclamation text-red-400' : 'fa-circle-info text-blue-400')}"></i>
+                <span>${msg}</span>
+            `;
+
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        // ==========================================
+        // 7. PERSISTENCE (LOCAL STORAGE)
+        // ==========================================
+
+        function saveLocalStorage() {
+            try {
+                localStorage.setItem('tennis_manager_state', JSON.stringify(gameState));
+            } catch (e) {
+                console.warn("Storage warning:", e);
+            }
+        }
+
+        function loadLocalStorage() {
+            try {
+                let saved = localStorage.getItem('tennis_manager_state');
+                if (saved) {
+                    let parsed = JSON.parse(saved);
+                    gameState = { ...gameState, ...parsed };
+                }
+            } catch (e) {
+                console.warn("Could not load local storage:", e);
+            }
+        }
+
+        // Initialize on load
+        window.onload = function() {
+            initApp();
+        };
+    </script>
+</body>
+</html>
