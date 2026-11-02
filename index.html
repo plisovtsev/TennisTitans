@@ -577,7 +577,7 @@
 
                 const existing = players.find(p => p.name.toLowerCase() === name.toLowerCase());
                 if (existing) {
-                    const maxP = existing.price * 1.15, minP = existing.price * 0.85;
+                    const maxP = existing.price * 1.10, minP = existing.price * 0.90;
                     if (targetPrice > maxP) targetPrice = Math.round(maxP);
                     if (targetPrice < minP) targetPrice = Math.round(minP);
 
