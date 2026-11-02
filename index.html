@@ -16,8 +16,10 @@
     <!-- Top Navigation Header -->
     <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-            <div class="flex items-center space-x-3">
+            <div class="flex items-center space-x-3 flex-wrap gap-y-2">
                 <span class="text-2xl font-black text-amber-400 tracking-wider">TENNIS<span class="text-white">TITANS</span></span>
+                <!-- Active Week Display Badge -->
+                <span id="active-week-badge" class="px-2.5 py-0.5 text-xs font-bold rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">Week 1: Season Opening</span>
                 <span id="transfer-badge" class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Transfer Window: OPEN</span>
             </div>
             <div id="user-info" class="hidden flex items-center space-x-4">
@@ -158,21 +160,36 @@
 
             <!-- TAB 4: ADMIN PORTAL -->
             <div id="tab-admin" class="tab-content space-y-6">
+                <!-- ACTIVE WEEK CONTROL BOX -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-3">
+                    <h3 class="text-lg font-bold text-amber-400">Competition Schedule Controller</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs uppercase tracking-wider text-slate-400 mb-1 font-semibold">Active Competition Week / Tournament Title</label>
+                            <input type="text" id="admin-week-input" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-4 py-2 text-sm text-white focus:outline-none focus:border-amber-400" placeholder="e.g. Week 2: Australian Open">
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="saveActiveWeek()" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-lg text-sm transition cursor-pointer">Update Active Week</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- WEEKLY DATA INGESTION -->
                 <div class="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-4">
                     <div class="flex justify-between items-center">
-                        <h3 class="text-lg font-bold text-amber-400">Weekly Data Ingestion &amp; Simulation</h3>
+                        <h3 class="text-lg font-bold text-amber-400">Weekly Data Ingestion &amp; Market Update</h3>
                         <div class="flex items-center space-x-2">
                             <span class="text-xs text-slate-400">Transfer Window Simulation:</span>
                             <button onclick="toggleTransferWindow()" id="admin-window-toggle" class="px-3 py-1 text-xs font-semibold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Force OPEN</button>
                         </div>
                     </div>
                     <p class="text-sm text-slate-400">
-                        Paste your dataset below (4-column or 5-column formats supported):<br>
+                        Paste your dataset below (10% max fluctuation cap applied automatically):<br>
                         <code class="text-xs text-amber-300 bg-slate-950 px-2 py-1 rounded inline-block mt-1">Name, Gender, Country, ATP_WTA_Points, Weekly_Perf_Points</code>
                     </p>
                     <textarea id="admin-csv-input" rows="8" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-4 font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-400" placeholder="Jannik Sinner, ATP, ITA, 9500, 1000&#10;Aryna Sabalenka, WTA, BLR, 9100, 800"></textarea>
                     <div class="flex justify-end">
-                        <button onclick="processWeeklyIngestion()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-lg text-sm transition">Process Weekly Update</button>
+                        <button onclick="processWeeklyIngestion()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-lg text-sm transition cursor-pointer">Process Weekly Update</button>
                     </div>
                 </div>
             </div>
@@ -189,6 +206,7 @@
         let currentManager = null;
         let players = [];
         let managersList = [];
+        let activeWeekText = "Week 1: Season Opening";
         let transferWindowOpen = true;
         let currentTourFilter = 'ALL';
         let currentLbTab = 'season';
@@ -198,7 +216,6 @@
                 if (window.supabase && window.supabase.createClient) {
                     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
                 } else {
-                    alert('Database connection initializing. Please try again in 2 seconds.');
                     return null;
                 }
             }
@@ -209,9 +226,11 @@
             const sb = getSupabase();
             if (!sb) return;
 
+            await fetchActiveWeek();
+
             const savedUsername = localStorage.getItem('tennis_current_user');
             if (savedUsername) {
-                const { data, error } = await sb.from('managers').select('*').eq('username', savedUsername).maybeSingle();
+                const { data } = await sb.from('managers').select('*').eq('username', savedUsername).maybeSingle();
                 if (data) {
                     currentManager = data;
                     showDashboard();
@@ -222,6 +241,36 @@
                 showAuth();
             }
         };
+
+        async function fetchActiveWeek() {
+            const sb = getSupabase();
+            if (!sb) return;
+            const { data } = await sb.from('league_settings').select('*').eq('id', 1).maybeSingle();
+            if (data && data.active_week) {
+                activeWeekText = data.active_week;
+            }
+            document.getElementById('active-week-badge').innerText = activeWeekText;
+            const inputEl = document.getElementById('admin-week-input');
+            if (inputEl) inputEl.value = activeWeekText;
+        }
+
+        async function saveActiveWeek() {
+            const sb = getSupabase();
+            if (!sb) return;
+            if (!currentManager || currentManager.role !== 'admin') { alert('Admin access required!'); return; }
+
+            const newText = document.getElementById('admin-week-input').value.trim();
+            if (!newText) return;
+
+            const { error } = await sb.from('league_settings').upsert({ id: 1, active_week: newText });
+            if (!error) {
+                activeWeekText = newText;
+                document.getElementById('active-week-badge').innerText = activeWeekText;
+                alert('Active competition week updated globally to: ' + newText);
+            } else {
+                alert('Failed to update week: ' + error.message);
+            }
+        }
 
         function showAuth() {
             document.getElementById('auth-section').classList.remove('hidden');
@@ -254,25 +303,23 @@
         async function fetchPlayers() {
             const sb = getSupabase();
             if (!sb) return;
-            const { data, error } = await sb.from('players').select('*');
-            if (!error && data) players = data;
+            const { data } = await sb.from('players').select('*');
+            if (data) players = data;
         }
 
         async function fetchManagers() {
             const sb = getSupabase();
             if (!sb) return;
-            const { data, error } = await sb.from('managers').select('*');
-            if (!error && data) managersList = data;
+            const { data } = await sb.from('managers').select('*');
+            if (data) managersList = data;
         }
 
         async function handleRegister() {
             const sb = getSupabase();
             if (!sb) return;
 
-            const usernameInput = document.getElementById('auth-username');
-            const passwordInput = document.getElementById('auth-password');
-            const username = usernameInput.value.trim();
-            const password = passwordInput.value.trim();
+            const username = document.getElementById('auth-username').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
 
             if (!username || !password) {
                 alert('Please enter both a username and password.');
@@ -284,9 +331,9 @@
             regBtn.disabled = true;
 
             try {
-                const { data: existing, error: checkError } = await sb.from('managers').select('username').eq('username', username).maybeSingle();
+                const { data: existing } = await sb.from('managers').select('username').eq('username', username).maybeSingle();
                 if (existing) {
-                    alert('Username is already taken. Please pick another one or log in.');
+                    alert('Username is already taken. Please pick another one.');
                     regBtn.innerText = 'Register';
                     regBtn.disabled = false;
                     return;
@@ -562,35 +609,40 @@
             const sb = getSupabase();
             if (!sb) return;
 
-            if (currentManager.role !== 'admin') { alert('Unauthorized!'); return; }
+            if (!currentManager || currentManager.role !== 'admin') { alert('Unauthorized!'); return; }
             const rawText = document.getElementById('admin-csv-input').value.trim();
             if (!rawText) return;
 
             const lines = rawText.split('\n');
+            let updatedCount = 0;
+
             for (let line of lines) {
                 const cols = line.split(',').map(c => c.trim());
                 if (cols.length < 4 || cols[0].toLowerCase().includes('name')) continue;
 
-                let name = cols[0], tour = cols[1].toUpperCase(), country = cols.length >= 5 ? cols[2] : '';
+                let name = cols[0], tour = cols[1].toUpperCase() === 'WTA' ? 'WTA' : 'ATP', country = cols.length >= 5 ? cols[2] : '';
                 let newPoints = parseInt((cols.length >= 5 ? cols[3] : cols[2]).replace(/,/g, '')) || 0;
                 let targetPrice = newPoints * 100;
 
                 const existing = players.find(p => p.name.toLowerCase() === name.toLowerCase());
                 if (existing) {
-                    const maxP = existing.price * 1.10, minP = existing.price * 0.90;
+                    // Applied 10% maximum price fluctuation cap
+                    const maxP = existing.price * 1.10;
+                    const minP = existing.price * 0.90;
                     if (targetPrice > maxP) targetPrice = Math.round(maxP);
                     if (targetPrice < minP) targetPrice = Math.round(minP);
 
                     await sb.from('players').update({ price: targetPrice, points: newPoints, tour, country }).eq('id', existing.id);
                 } else {
-                    await sb.from('players').insert([{ name, tour: tour === 'WTA' ? 'WTA' : 'ATP', country, price: targetPrice, points: newPoints }]);
+                    await sb.from('players').insert([{ name, tour, country, price: targetPrice, points: newPoints }]);
                 }
+                updatedCount++;
             }
 
             await fetchPlayers();
             renderMarket();
             renderRoster();
-            alert('Database player market updated successfully!');
+            alert(`Successfully updated market values for ${updatedCount} players (10% cap active)!`);
         }
     </script>
 </body>
