@@ -628,45 +628,101 @@
             }
         }
 
-        async function processWeeklyIngestion() {
-            const sb = getSupabase();
-            if (!sb) return;
+       async function processWeeklyIngestion() {
+    const sb = getSupabase();
+    if (!sb) return;
 
-            if (!currentManager || currentManager.role !== 'admin') { alert('Unauthorized!'); return; }
-            const rawText = document.getElementById('admin-csv-input').value.trim();
-            if (!rawText) return;
+    if (!currentManager || currentManager.role !== 'admin') { alert('Unauthorized!'); return; }
+    const rawText = document.getElementById('admin-csv-input').value.trim();
+    if (!rawText) return;
 
-            const lines = rawText.split('\n');
-            let updatedCount = 0;
+    const lines = rawText.split('\n');
+    let updatedCount = 0;
 
-            for (let line of lines) {
-                const cols = line.split(',').map(c => c.trim());
-                if (cols.length < 4 || cols[0].toLowerCase().includes('name')) continue;
+    // 1. Process player price updates and points from CSV
+    for (let line of lines) {
+        const cols = line.split(',').map(c => c.trim());
+        if (cols.length < 4 || cols[0].toLowerCase().includes('name')) continue;
 
-                let name = cols[0], tour = cols[1].toUpperCase() === 'WTA' ? 'WTA' : 'ATP', country = cols.length >= 5 ? cols[2] : '';
-                let newPoints = parseInt((cols.length >= 5 ? cols[3] : cols[2]).replace(/,/g, '')) || 0;
-                let targetPrice = newPoints * 100;
+        let name = cols[0];
+        let tour = cols[1].toUpperCase() === 'WTA' ? 'WTA' : 'ATP';
+        let country = cols.length >= 5 ? cols[2] : '';
+        // Expecting CSV format: Name, Tour, Country, ATP/WTA_Points, Weekly_Perf_Points
+        let newPoints = parseInt((cols.length >= 5 ? cols[3] : cols[2]).replace(/,/g, '')) || 0;
+        let weeklyPerf = parseInt((cols.length >= 5 ? cols[4] : cols[3]).replace(/,/g, '')) || 0;
+        let targetPrice = newPoints * 100;
 
-                const existing = players.find(p => p.name.toLowerCase() === name.toLowerCase());
-                if (existing) {
-                    // Applied 10% maximum price fluctuation cap
-                    const maxP = existing.price * 1.10;
-                    const minP = existing.price * 0.90;
-                    if (targetPrice > maxP) targetPrice = Math.round(maxP);
-                    if (targetPrice < minP) targetPrice = Math.round(minP);
+        const existing = players.find(p => p.name.toLowerCase() === name.toLowerCase());
+        if (existing) {
+            // Applied 10% maximum price fluctuation cap
+            const maxP = existing.price * 1.10;
+            const minP = existing.price * 0.90;
+            if (targetPrice > maxP) targetPrice = Math.round(maxP);
+            if (targetPrice < minP) targetPrice = Math.round(minP);
 
-                    await sb.from('players').update({ price: targetPrice, points: newPoints, tour, country }).eq('id', existing.id);
-                } else {
-                    await sb.from('players').insert([{ name, tour, country, price: targetPrice, points: newPoints }]);
-                }
-                updatedCount++;
-            }
-
-            await fetchPlayers();
-            renderMarket();
-            renderRoster();
-            alert(`Successfully updated market values for ${updatedCount} players (10% cap active)!`);
+            await sb.from('players').update({ 
+                price: targetPrice, 
+                points: newPoints, 
+                weekly_perf_points: weeklyPerf, 
+                tour, 
+                country 
+            }).eq('id', existing.id);
+        } else {
+            await sb.from('players').insert([{ 
+                name, 
+                tour, 
+                country, 
+                price: targetPrice, 
+                points: newPoints, 
+                weekly_perf_points: weeklyPerf 
+            }]);
         }
+        updatedCount++;
+    }
+
+    // Refresh players data array locally
+    await fetchPlayers();
+    await fetchManagers();
+
+    // 2. Automated Scoring & 10-Player Squad Validation Loop
+    for (let manager of managersList) {
+        const roster = manager.roster || [];
+        
+        // ENFORCE 10-PLAYER RULE: If incomplete, 0 points awarded for the week
+        if (roster.length < 10) {
+            await sb.from('managers').update({ 
+                weekly_points: 0,
+                trades_left: 6 // Reset weekly trades for the next round
+            }).eq('id', manager.id);
+            continue;
+        }
+
+        // Full 10-player roster: tally total weekly points scored by their squad
+        let roundScore = 0;
+        roster.forEach(playerName => {
+            const p = players.find(x => x.name === playerName);
+            if (p && p.weekly_perf_points) {
+                roundScore += p.weekly_perf_points;
+            }
+        });
+
+        const newSeasonTotal = (manager.season_points || 0) + roundScore;
+
+        // Update manager's scores and reset weekly trades quota back to 6
+        await sb.from('managers').update({
+            weekly_points: roundScore,
+            season_points: newSeasonTotal,
+            trades_left: 6 
+        }).eq('id', manager.id);
+    }
+
+    await fetchManagers();
+    renderMarket();
+    renderRoster();
+    renderLeaderboard();
+    
+    alert(`Weekly update processed successfully!\n- Updated ${updatedCount} player prices (10% cap).\n- Calculated manager scores (Incomplete squads received 0 pts).\n- Reset weekly trade quotas to 6.`);
+}
     </script>
 </body>
 </html>
