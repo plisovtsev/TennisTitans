@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TennisTitans - Fantasy Tennis Manager</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         .tab-content { display: none; }
         .tab-content.active { display: block; }
@@ -20,8 +21,8 @@
                 <span id="transfer-badge" class="px-2 py-0.5 text-xs font-semibold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Transfer Window: OPEN</span>
             </div>
             <div id="user-info" class="hidden flex items-center space-x-4">
-                <span class="text-sm text-slate-300">Manager: <strong id="nav-username" class="text-white"></strong></span>
-                <span class="text-sm text-amber-400 font-mono bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">$<span id="nav-balance">1,000,000</span></span>
+                <span class="text-sm text-slate-300">Manager: <strong id="nav-username" class="text-white"></strong> <span id="admin-indicator" class="hidden text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded font-mono font-bold">ADMIN</span></span>
+                <span class="text-sm text-amber-400 font-mono bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">$<span id="nav-balance">1,500,000</span></span>
                 <button onclick="logout()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded transition">Logout</button>
             </div>
         </div>
@@ -49,7 +50,7 @@
             </div>
         </section>
 
-        <!-- DASHBOARD CONTAINER (Hidden until login) -->
+        <!-- DASHBOARD CONTAINER -->
         <div id="dashboard-container" class="hidden">
             
             <!-- Navigation Tabs -->
@@ -57,7 +58,7 @@
                 <button onclick="switchTab('roster')" class="tab-btn px-5 py-2.5 rounded-lg font-semibold text-sm transition bg-amber-500 text-slate-950" data-target="roster">My Roster</button>
                 <button onclick="switchTab('market')" class="tab-btn px-5 py-2.5 rounded-lg font-semibold text-sm transition bg-slate-900 text-slate-400 hover:text-white" data-target="market">Transfer Market</button>
                 <button onclick="switchTab('leaderboard')" class="tab-btn px-5 py-2.5 rounded-lg font-semibold text-sm transition bg-slate-900 text-slate-400 hover:text-white" data-target="leaderboard">Leaderboard</button>
-                <button onclick="switchTab('admin')" class="tab-btn px-5 py-2.5 rounded-lg font-semibold text-sm transition bg-slate-900 text-amber-400/80 hover:text-amber-400 border border-amber-500/20" data-target="admin">Admin Portal</button>
+                <button id="nav-admin-btn" onclick="switchTab('admin')" class="hidden tab-btn px-5 py-2.5 rounded-lg font-semibold text-sm transition bg-slate-900 text-amber-400/80 hover:text-amber-400 border border-amber-500/20" data-target="admin">Admin Portal</button>
             </nav>
 
             <!-- TAB 1: MY ROSTER -->
@@ -94,9 +95,7 @@
                                     <th class="p-3.5 text-right">Action</th>
                                 </tr>
                             </thead>
-                            <tbody id="roster-table-body" class="divide-y divide-slate-800/60 text-sm">
-                                <!-- Populated dynamically -->
-                            </tbody>
+                            <tbody id="roster-table-body" class="divide-y divide-slate-800/60 text-sm"></tbody>
                         </table>
                     </div>
                 </div>
@@ -127,9 +126,7 @@
                                     <th class="p-3.5 text-right">Action</th>
                                 </tr>
                             </thead>
-                            <tbody id="market-table-body" class="divide-y divide-slate-800/60 text-sm">
-                                <!-- Populated dynamically -->
-                            </tbody>
+                            <tbody id="market-table-body" class="divide-y divide-slate-800/60 text-sm"></tbody>
                         </table>
                     </div>
                 </div>
@@ -153,9 +150,7 @@
                                     <th class="p-3.5 text-right" id="lb-score-header">Total Points</th>
                                 </tr>
                             </thead>
-                            <tbody id="leaderboard-table-body" class="divide-y divide-slate-800/60 text-sm">
-                                <!-- Populated dynamically -->
-                            </tbody>
+                            <tbody id="leaderboard-table-body" class="divide-y divide-slate-800/60 text-sm"></tbody>
                         </table>
                     </div>
                 </div>
@@ -172,9 +167,8 @@
                         </div>
                     </div>
                     <p class="text-sm text-slate-400">
-                        Paste your dataset below. Supports both <strong>4-column</strong> or <strong>5-column</strong> formats:<br>
-                        <code class="text-xs text-amber-300 bg-slate-950 px-2 py-1 rounded inline-block mt-1">Name, Gender, Country, ATP_WTA_Points, Weekly_Perf_Points</code><br>
-                        <span class="text-xs text-slate-500">Prices automatically calculate as Points × 100, capped at ±15% max weekly fluctuation.</span>
+                        Paste your dataset below (4-column or 5-column formats supported):<br>
+                        <code class="text-xs text-amber-300 bg-slate-950 px-2 py-1 rounded inline-block mt-1">Name, Gender, Country, ATP_WTA_Points, Weekly_Perf_Points</code>
                     </p>
                     <textarea id="admin-csv-input" rows="8" class="w-full bg-slate-950 border border-slate-700 rounded-lg p-4 font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-400" placeholder="Jannik Sinner, ATP, ITA, 9500, 1000&#10;Aryna Sabalenka, WTA, BLR, 9100, 800"></textarea>
                     <div class="flex justify-end">
@@ -188,18 +182,28 @@
     </main>
 
     <script>
-        // CORE STATE (Completely clean slate, no mock players)
-        let players = []; 
-        let users = JSON.parse(localStorage.getItem('tennis_users') || '{}');
-        let currentUser = localStorage.getItem('tennis_current_user') || null;
+        // Supabase Initialization
+        const SUPABASE_URL = 'https://osliaksxvqugxeigrjvc.supabase.co';
+        const SUPABASE_KEY = 'sb_publishable_Ffu2VZ3Eecuf_Cf3ZE9zhw_Hgg8nxxO';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let currentManager = null;
+        let players = [];
+        let managersList = [];
         let transferWindowOpen = true;
         let currentTourFilter = 'ALL';
         let currentLbTab = 'season';
 
-        // Initialize App on Load
-        window.onload = function() {
-            if (currentUser && users[currentUser]) {
-                showDashboard();
+        window.onload = async function() {
+            const savedUsername = localStorage.getItem('tennis_current_user');
+            if (savedUsername) {
+                const { data } = await supabase.from('managers').select('*').eq('username', savedUsername).single();
+                if (data) {
+                    currentManager = data;
+                    showDashboard();
+                } else {
+                    showAuth();
+                }
             } else {
                 showAuth();
             }
@@ -211,65 +215,90 @@
             document.getElementById('user-info').classList.add('hidden');
         }
 
-        function showDashboard() {
+        async function showDashboard() {
             document.getElementById('auth-section').classList.add('hidden');
             document.getElementById('dashboard-container').classList.remove('hidden');
             document.getElementById('user-info').classList.remove('hidden');
-            document.getElementById('nav-username').innerText = currentUser;
+            document.getElementById('nav-username').innerText = currentManager.username;
+
+            // Admin Role UI Check
+            if (currentManager.role === 'admin') {
+                document.getElementById('nav-admin-btn').classList.remove('hidden');
+                document.getElementById('admin-indicator').classList.remove('hidden');
+            } else {
+                document.getElementById('nav-admin-btn').classList.add('hidden');
+                document.getElementById('admin-indicator').classList.add('hidden');
+            }
+
+            await fetchPlayers();
+            await fetchManagers();
             updateUserData();
             renderRoster();
             renderMarket();
             renderLeaderboard();
         }
 
-        function handleRegister() {
-            const username = document.getElementById('auth-username').value.trim();
-            const pass = document.getElementById('auth-password').value.trim();
-            if (!username || !pass) { alert('Please enter username and password.'); return; }
-            if (users[username]) { alert('Username already exists. Please login.'); return; }
+        async function fetchPlayers() {
+            const { data } = await supabase.from('players').select('*');
+            players = data || [];
+        }
 
-            users[username] = {
-                password: pass,
+        async function fetchManagers() {
+            const { data } = await supabase.from('managers').select('*');
+            managersList = data || [];
+        }
+
+        async function handleRegister() {
+            const username = document.getElementById('auth-username').value.trim();
+            const password = document.getElementById('auth-password').value.trim();
+            if (!username || !password) { alert('Enter username & password.'); return; }
+
+            const { data: existing } = await supabase.from('managers').select('username').eq('username', username).single();
+            if (existing) { alert('Username already exists!'); return; }
+
+            const newManager = {
+                username,
+                password,
+                role: 'player',
                 balance: 1500000,
                 roster: [],
-                tradesLeft: 6,
-                weeklyPoints: 0,
-                seasonPoints: 0
+                trades_left: 6,
+                weekly_points: 0,
+                season_points: 0
             };
-            saveUsers();
-            currentUser = username;
-            localStorage.setItem('tennis_current_user', currentUser);
+
+            const { data, error } = await supabase.from('managers').insert([newManager]).select().single();
+            if (error) { alert('Registration failed: ' + error.message); return; }
+
+            currentManager = data;
+            localStorage.setItem('tennis_current_user', currentManager.username);
             showDashboard();
         }
 
-        function handleLogin() {
+        async function handleLogin() {
             const username = document.getElementById('auth-username').value.trim();
-            const pass = document.getElementById('auth-password').value.trim();
-            if (!users[username] || users[username].password !== pass) {
-                alert('Invalid username or password.'); return;
-            }
-            currentUser = username;
-            localStorage.setItem('tennis_current_user', currentUser);
+            const password = document.getElementById('auth-password').value.trim();
+
+            const { data, error } = await supabase.from('managers').select('*').eq('username', username).eq('password', password).single();
+            if (error || !data) { alert('Invalid username or password.'); return; }
+
+            currentManager = data;
+            localStorage.setItem('tennis_current_user', currentManager.username);
             showDashboard();
         }
 
         function logout() {
-            currentUser = null;
+            currentManager = null;
             localStorage.removeItem('tennis_current_user');
             showAuth();
         }
 
-        function saveUsers() {
-            localStorage.setItem('tennis_users', JSON.stringify(users));
-        }
-
         function updateUserData() {
-            if (!currentUser) return;
-            const u = users[currentUser];
-            document.getElementById('stat-budget').innerText = u.balance.toLocaleString();
-            document.getElementById('stat-slots').innerText = u.roster.length;
-            document.getElementById('stat-trades').innerText = u.tradesLeft;
-            document.getElementById('nav-balance').innerText = u.balance.toLocaleString();
+            if (!currentManager) return;
+            document.getElementById('stat-budget').innerText = currentManager.balance.toLocaleString();
+            document.getElementById('stat-slots').innerText = currentManager.roster.length;
+            document.getElementById('stat-trades').innerText = currentManager.trades_left;
+            document.getElementById('nav-balance').innerText = currentManager.balance.toLocaleString();
         }
 
         function switchTab(target) {
@@ -280,8 +309,10 @@
             });
             document.getElementById('tab-' + target).classList.add('active');
             const btn = document.querySelector(`[data-target="${target}"]`);
-            btn.classList.remove('bg-slate-900', 'text-slate-400');
-            btn.classList.add('bg-amber-500', 'text-slate-950');
+            if (btn) {
+                btn.classList.remove('bg-slate-900', 'text-slate-400');
+                btn.classList.add('bg-amber-500', 'text-slate-950');
+            }
         }
 
         function setTourFilter(tour) {
@@ -299,18 +330,15 @@
         }
 
         function renderRoster() {
-            if (!currentUser) return;
-            const u = users[currentUser];
             const tbody = document.getElementById('roster-table-body');
             tbody.innerHTML = '';
-
-            if (u.roster.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500">Your roster is empty. Go to the Transfer Market to draft your 10 players!</td></tr>`;
+            if (currentManager.roster.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500">Your roster is empty. Go to Transfer Market to build your team!</td></tr>`;
                 return;
             }
 
-            u.roster.forEach(playerName => {
-                const p = players.find(x => x.name === playerName);
+            currentManager.roster.forEach(name => {
+                const p = players.find(x => x.name === name);
                 if (!p) return;
                 tbody.innerHTML += `
                     <tr class="hover:bg-slate-800/40 transition">
@@ -339,13 +367,12 @@
             });
 
             if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500">No players found in database. Use the Admin Portal to ingest your player data list.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500">No players found in database.</td></tr>`;
                 return;
             }
 
             filtered.forEach(p => {
-                const u = users[currentUser];
-                const owned = u.roster.includes(p.name);
+                const owned = currentManager.roster.includes(p.name);
                 tbody.innerHTML += `
                     <tr class="hover:bg-slate-800/40 transition">
                         <td class="p-3.5 font-medium text-white">${p.name}</td>
@@ -361,85 +388,80 @@
             });
         }
 
-        function buyPlayer(name) {
-            const u = users[currentUser];
+        async function buyPlayer(name) {
             if (!transferWindowOpen) { alert('Transfer window is closed!'); return; }
-            if (u.roster.length >= 10) { alert('Roster is full (10 players max).'); return; }
-            if (u.tradesLeft <= 0) { alert('No trades remaining this week.'); return; }
+            if (currentManager.roster.length >= 10) { alert('Roster full (10 max).'); return; }
+            if (currentManager.trades_left <= 0) { alert('No trades left this week.'); return; }
 
             const p = players.find(x => x.name === name);
-            if (!p) return;
-            if (u.balance < p.price) { alert('Insufficient budget!'); return; }
+            if (!p || currentManager.balance < p.price) { alert('Insufficient budget!'); return; }
 
-            u.balance -= p.price;
-            u.roster.push(p.name);
-            u.tradesLeft--;
-            saveUsers();
-            updateUserData();
-            renderRoster();
-            renderMarket();
+            const updatedRoster = [...currentManager.roster, p.name];
+            const updatedBalance = currentManager.balance - p.price;
+            const updatedTrades = currentManager.trades_left - 1;
+
+            const { data, error } = await supabase.from('managers').update({
+                roster: updatedRoster,
+                balance: updatedBalance,
+                trades_left: updatedTrades
+            }).eq('id', currentManager.id).select().single();
+
+            if (!error) {
+                currentManager = data;
+                updateUserData();
+                renderRoster();
+                renderMarket();
+            }
         }
 
-        function sellPlayer(name) {
-            const u = users[currentUser];
+        async function sellPlayer(name) {
             if (!transferWindowOpen) { alert('Transfer window is closed!'); return; }
-            if (u.tradesLeft <= 0) { alert('No trades remaining this week.'); return; }
+            if (currentManager.trades_left <= 0) { alert('No trades left this week.'); return; }
 
             const p = players.find(x => x.name === name);
             if (!p) return;
 
-            u.balance += p.price;
-            u.roster = u.roster.filter(x => x !== name);
-            u.tradesLeft--;
-            saveUsers();
-            updateUserData();
-            renderRoster();
-            renderMarket();
+            const updatedRoster = currentManager.roster.filter(x => x !== name);
+            const updatedBalance = currentManager.balance + p.price;
+            const updatedTrades = currentManager.trades_left - 1;
+
+            const { data, error } = await supabase.from('managers').update({
+                roster: updatedRoster,
+                balance: updatedBalance,
+                trades_left: updatedTrades
+            }).eq('id', currentManager.id).select().single();
+
+            if (!error) {
+                currentManager = data;
+                updateUserData();
+                renderRoster();
+                renderMarket();
+            }
         }
 
         function switchLeaderboardTab(tab) {
             currentLbTab = tab;
-            const btnSeason = document.getElementById('lb-btn-season');
-            const btnWeekly = document.getElementById('lb-btn-weekly');
-            const header = document.getElementById('lb-score-header');
-
-            if (tab === 'season') {
-                btnSeason.className = "px-4 py-2 rounded-lg bg-amber-500 text-slate-950 font-bold text-sm";
-                btnWeekly.className = "px-4 py-2 rounded-lg bg-slate-900 text-slate-400 font-semibold text-sm";
-                header.innerText = "Total Season Points";
-            } else {
-                btnWeekly.className = "px-4 py-2 rounded-lg bg-amber-500 text-slate-950 font-bold text-sm";
-                btnSeason.className = "px-4 py-2 rounded-lg bg-slate-900 text-slate-400 font-semibold text-sm";
-                header.innerText = "Weekly Points";
-            }
+            document.getElementById('lb-btn-season').className = tab === 'season' ? "px-4 py-2 rounded-lg bg-amber-500 text-slate-950 font-bold text-sm" : "px-4 py-2 rounded-lg bg-slate-900 text-slate-400 font-semibold text-sm";
+            document.getElementById('lb-btn-weekly').className = tab === 'weekly' ? "px-4 py-2 rounded-lg bg-amber-500 text-slate-950 font-bold text-sm" : "px-4 py-2 rounded-lg bg-slate-900 text-slate-400 font-semibold text-sm";
+            document.getElementById('lb-score-header').innerText = tab === 'season' ? "Total Season Points" : "Weekly Points";
             renderLeaderboard();
         }
 
-        function renderLeaderboard() {
+        async function renderLeaderboard() {
+            await fetchManagers();
             const tbody = document.getElementById('leaderboard-table-body');
             tbody.innerHTML = '';
 
-            const userList = Object.keys(users).map(username => {
-                const u = users[username];
-                let portfolioValue = u.balance;
-                u.roster.forEach(rName => {
+            const userList = managersList.map(m => {
+                let portfolioValue = m.balance;
+                m.roster.forEach(rName => {
                     const found = players.find(pl => pl.name === rName);
                     if (found) portfolioValue += found.price;
                 });
-                return {
-                    username,
-                    portfolioValue,
-                    weeklyPoints: u.weeklyPoints,
-                    seasonPoints: u.seasonPoints
-                };
+                return { username: m.username, portfolioValue, weeklyPoints: m.weekly_points, seasonPoints: m.season_points };
             });
 
             userList.sort((a, b) => currentLbTab === 'season' ? b.seasonPoints - a.seasonPoints : b.weeklyPoints - a.weeklyPoints);
-
-            if (userList.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="p-6 text-center text-slate-500">No managers registered yet.</td></tr>`;
-                return;
-            }
 
             userList.forEach((item, index) => {
                 const score = currentLbTab === 'season' ? item.seasonPoints : item.weeklyPoints;
@@ -461,93 +483,44 @@
             if (transferWindowOpen) {
                 badge.className = "px-2 py-0.5 text-xs font-semibold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
                 badge.innerText = "Transfer Window: OPEN";
-                btn.className = "px-3 py-1 text-xs font-semibold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
                 btn.innerText = "Force CLOSED";
             } else {
                 badge.className = "px-2 py-0.5 text-xs font-semibold rounded bg-red-500/20 text-red-400 border border-red-500/30";
                 badge.innerText = "Transfer Window: CLOSED";
-                btn.className = "px-3 py-1 text-xs font-semibold rounded bg-red-500/20 text-red-400 border border-red-500/30";
                 btn.innerText = "Force OPEN";
             }
         }
 
-        // FLEXIBLE INGESTION PARSER (Supports 4-column & 5-column formats)
-        function processWeeklyIngestion() {
+        async function processWeeklyIngestion() {
+            if (currentManager.role !== 'admin') { alert('Unauthorized!'); return; }
             const rawText = document.getElementById('admin-csv-input').value.trim();
-            if (!rawText) { alert('Please paste your weekly data first.'); return; }
+            if (!rawText) return;
 
             const lines = rawText.split('\n');
-            let updatedCount = 0;
-
-            lines.forEach(line => {
+            for (let line of lines) {
                 const cols = line.split(',').map(c => c.trim());
-                if (cols.length < 4) return;
-                
-                // Detect header row and skip
-                if (cols[0].toLowerCase().includes('name') || cols[1].toLowerCase().includes('points')) return;
+                if (cols.length < 4 || cols[0].toLowerCase().includes('name')) continue;
 
-                let name, tour, country, newPoints, weeklyPerf;
+                let name = cols[0], tour = cols[1].toUpperCase(), country = cols.length >= 5 ? cols[2] : '';
+                let newPoints = parseInt((cols.length >= 5 ? cols[3] : cols[2]).replace(/,/g, '')) || 0;
+                let targetPrice = newPoints * 100;
 
-                if (cols.length >= 5) {
-                    // 5-column format: Name, Gender/Tour, Country, Points, WeeklyPerf
-                    name = cols[0];
-                    tour = cols[1].toUpperCase();
-                    country = cols[2];
-                    newPoints = parseInt(cols[3].replace(/,/g, '')) || 0;
-                    weeklyPerf = parseInt(cols[4].replace(/,/g, '')) || 0;
-                } else {
-                    // 4-column format fallback: Name, Tour, Points, WeeklyPerf
-                    name = cols[0];
-                    tour = cols[1].toUpperCase();
-                    country = '';
-                    newPoints = parseInt(cols[2].replace(/,/g, '')) || 0;
-                    weeklyPerf = parseInt(cols[3].replace(/,/g, '')) || 0;
-                }
-
-                let existing = players.find(p => p.name.toLowerCase() === name.toLowerCase());
-                const targetPrice = newPoints * 100;
-
+                const existing = players.find(p => p.name.toLowerCase() === name.toLowerCase());
                 if (existing) {
-                    // Enforce ±15% max weekly price fluctuation cap rule
-                    const maxPrice = existing.price * 1.15;
-                    const minPrice = existing.price * 0.85;
-                    let finalPrice = targetPrice;
-                    if (targetPrice > maxPrice) finalPrice = Math.round(maxPrice);
-                    if (targetPrice < minPrice) finalPrice = Math.round(minPrice);
+                    const maxP = existing.price * 1.15, minP = existing.price * 0.85;
+                    if (targetPrice > maxP) targetPrice = Math.round(maxP);
+                    if (targetPrice < minP) targetPrice = Math.round(minP);
 
-                    existing.price = finalPrice;
-                    existing.points = newPoints;
-                    existing.country = country || existing.country;
-                    existing.tour = tour || existing.tour;
+                    await supabase.from('players').update({ price: targetPrice, points: newPoints, tour, country }).eq('id', existing.id);
                 } else {
-                    players.push({
-                        name: name,
-                        tour: tour === 'WTA' ? 'WTA' : 'ATP',
-                        country: country,
-                        price: targetPrice,
-                        points: newPoints
-                    });
+                    await supabase.from('players').insert([{ name, tour: tour === 'WTA' ? 'WTA' : 'ATP', country, price: targetPrice, points: newPoints }]);
                 }
-                updatedCount++;
-            });
+            }
 
-            // Distribute weekly points to user rosters
-            Object.keys(users).forEach(username => {
-                const u = users[username];
-                let weekScore = 0;
-                u.roster.forEach(rName => {
-                    // Check if this player was in the ingested batch
-                    // For simplicity, we can award weeklyPerf if matched, or 0
-                });
-                // Reset weekly trades counter for the new week
-                u.tradesLeft = 6;
-            });
-
-            saveUsers();
+            await fetchPlayers();
             renderMarket();
             renderRoster();
-            renderLeaderboard();
-            alert(`Successfully processed ${updatedCount} player records! Market prices and points updated.`);
+            alert('Database player market updated successfully!');
         }
     </script>
 </body>
