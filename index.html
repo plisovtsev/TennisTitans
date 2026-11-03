@@ -486,38 +486,52 @@
 }
 
         function renderMarket() {
-            const tbody = document.getElementById('market-table-body');
-            const search = document.getElementById('market-search').value.toLowerCase();
-            tbody.innerHTML = '';
+    const container = document.getElementById('market-container'); // or whatever container ID your market table uses
+    if (!container) return;
 
-            const filtered = players.filter(p => {
-                const matchTour = currentTourFilter === 'ALL' || p.tour === currentTourFilter;
-                const matchName = p.name.toLowerCase().includes(search);
-                return matchTour && matchName;
-            });
-
-            if (filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500">No players found in database.</td></tr>`;
-                return;
-            }
-
-            const currentRoster = currentManager.roster || [];
-            filtered.forEach(p => {
-                const owned = currentRoster.includes(p.name);
-                tbody.innerHTML += `
-                    <tr class="hover:bg-slate-800/40 transition">
-                        <td class="p-3.5 font-medium text-white">${p.name}</td>
-                        <td class="p-3.5"><span class="px-2 py-0.5 text-xs rounded bg-slate-800 text-slate-300 font-mono">${p.tour}</span></td>
-                        <td class="p-3.5 text-slate-400">${p.country || 'N/A'}</td>
-                        <td class="p-3.5 font-mono text-amber-400">$${(p.price || 0).toLocaleString()}</td>
-                        <td class="p-3.5 font-mono">${(p.points || 0).toLocaleString()}</td>
-                        <td class="p-3.5 text-right">
-                            ${owned ? '<span class="text-xs text-slate-500 font-semibold">Owned</span>' : `<button onclick="buyPlayer('${p.name}')" class="bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded text-xs font-semibold transition cursor-pointer">Buy</button>`}
-                        </td>
+    let html = `
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-800 text-slate-400 text-xs uppercase tracking-wider">
+                        <th class="py-3 px-4">Player Name</th>
+                        <th class="py-3 px-4">Tour</th>
+                        <th class="py-3 px-4">Country</th>
+                        <th class="py-3 px-4">Price ($)</th>
+                        <th class="py-3 px-4">Points</th>
+                        <th class="py-3 px-4 text-amber-400">Last Week</th>
+                        <th class="py-3 px-4 text-right">Action</th>
                     </tr>
-                `;
-            });
-        }
+                </thead>
+                <tbody class="divide-y divide-slate-800/60 text-sm">
+    `;
+
+    // Filter or map your players array here based on your search/filter logic
+    const displayedPlayers = window.filteredPlayers || players;
+
+    if (displayedPlayers.length === 0) {
+        html += `<tr><td colspan="7" class="py-6 text-center text-slate-500">No players found.</td></tr>`;
+    } else {
+        displayedPlayers.forEach(p => {
+            html += `
+                <tr class="hover:bg-slate-800/30 transition-colors">
+                    <td class="py-4 px-4 font-semibold text-white">${p.name}</td>
+                    <td class="py-4 px-4"><span class="px-2 py-0.5 text-xs rounded bg-slate-800 text-slate-300">${p.tour}</span></td>
+                    <td class="py-4 px-4 text-slate-300">${p.country || ''}</td>
+                    <td class="py-4 px-4 font-medium text-amber-400">$${p.price.toLocaleString()}</td>
+                    <td class="py-4 px-4 text-slate-200">${(p.points || 0).toLocaleString()}</td>
+                    <td class="py-4 px-4 font-bold text-amber-400">+${(p.weekly_points || 0).toLocaleString()}</td>
+                    <td class="py-4 px-4 text-right">
+                        <button onclick="buyPlayer(${p.id})" class="px-3 py-1 bg-emerald-600/80 hover:bg-emerald-600 text-white rounded text-xs transition-colors">Buy</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+}
 
        async function buyPlayer(name) {
     const sb = getSupabase();
