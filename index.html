@@ -627,34 +627,47 @@
         }
 
         async function renderLeaderboard() {
-            await fetchManagers();
-            const tbody = document.getElementById('leaderboard-table-body');
-            tbody.innerHTML = '';
+    await fetchManagers();
+    const tbody = document.getElementById('leaderboard-table-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
 
-            const userList = managersList.map(m => {
-                let portfolioValue = m.balance || 0;
-                (m.roster || []).forEach(rName => {
-                    const found = players.find(pl => pl.name === rName);
-                    if (found) portfolioValue += found.price;
-                });
-                return { username: m.username, portfolioValue, weeklyPoints: m.weekly_points || 0, seasonPoints: m.season_points || 0 };
-            });
+    const userList = managersList.map(m => {
+        let portfolioValue = m.balance || 0;
+        let weeklyPts = 0;
+        let seasonPts = m.season_points || 0;
 
-            userList.sort((a, b) => currentLbTab === 'season' ? b.seasonPoints - a.seasonPoints : b.weeklyPoints - a.weeklyPoints);
+        // Calculate portfolio value and sum up weekly points from the manager's roster names
+        (m.roster || []).forEach(rName => {
+            const found = players.find(pl => pl.name.toLowerCase() === rName.toLowerCase());
+            if (found) {
+                portfolioValue += found.price;
+                weeklyPts += (found.weekly_points || 0);
+            }
+        });
 
-            userList.forEach((item, index) => {
-                const score = currentLbTab === 'season' ? item.seasonPoints : item.weeklyPoints;
-                tbody.innerHTML += `
-                    <tr class="hover:bg-slate-800/40 transition">
-                        <td class="p-3.5 font-black text-amber-400">#${index + 1}</td>
-                        <td class="p-3.5 font-medium text-white">${item.username}</td>
-                        <td class="p-3.5 font-mono text-slate-300">$${item.portfolioValue.toLocaleString()}</td>
-                        <td class="p-3.5 font-mono text-right font-bold text-emerald-400">${score.toLocaleString()}</td>
-                    </tr>
-                `;
-            });
-        }
+        return { 
+            username: m.username, 
+            portfolioValue, 
+            weeklyPoints: weeklyPts, 
+            seasonPoints: seasonPts > 0 ? seasonPts : weeklyPts // fallback to weekly if season points haven't accumulated yet
+        };
+    });
 
+    userList.sort((a, b) => currentLbTab === 'season' ? b.seasonPoints - a.seasonPoints : b.weeklyPoints - a.weeklyPoints);
+
+    userList.forEach((item, index) => {
+        const score = currentLbTab === 'season' ? item.seasonPoints : item.weeklyPoints;
+        tbody.innerHTML += `
+            <tr class="hover:bg-slate-800/40 transition">
+                <td class="p-3.5 font-black text-amber-400">#${index + 1}</td>
+                <td class="p-3.5 font-medium text-white">${item.username}</td>
+                <td class="p-3.5 font-mono text-slate-300">$${item.portfolioValue.toLocaleString()}</td>
+                <td class="p-3.5 font-mono text-right font-bold text-emerald-400">+${score.toLocaleString()}</td>
+            </tr>
+        `;
+    });
+}
         function toggleTransferWindow() {
             transferWindowOpen = !transferWindowOpen;
             const badge = document.getElementById('transfer-badge');
