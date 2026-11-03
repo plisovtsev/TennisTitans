@@ -631,7 +631,7 @@
             renderLeaderboard();
         }
 
-       async function renderLeaderboard() {
+     async function renderLeaderboard() {
     const sb = getSupabase();
     if (!sb) return;
 
@@ -640,6 +640,8 @@
     const col3Header = document.getElementById('lb-col3-header');
     if (!tbody) return;
     tbody.innerHTML = '';
+
+    const cleanStr = str => str ? str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
 
     // --- WEEKLY WINNERS TAB ---
     if (currentLbTab === 'weekly') {
@@ -702,21 +704,19 @@
     
     await fetchManagers();
 
+    // Fetch all historical weekly manager scores
     const { data: allWeeklyScores } = await sb.from('weekly_manager_scores').select('*');
     
     const seasonPointsMap = {};
     if (allWeeklyScores) {
         allWeeklyScores.forEach(row => {
-            const mgrName = row.manager_name;
+            const key = cleanStr(row.manager_name);
             const pts = row.score || 0;
-            seasonPointsMap[mgrName] = (seasonPointsMap[mgrName] || 0) + pts;
+            seasonPointsMap[key] = (seasonPointsMap[key] || 0) + pts;
         });
     }
 
-    const cleanStr = str => str ? str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
-
     const userList = managersList.map(m => {
-        // ADMIN FILTER REMOVED: Admins are now fully included in the leaderboard!
         let portfolioValue = m.balance || 0;
         const rosterArr = m.roster || [];
         
@@ -727,8 +727,9 @@
             }
         });
 
-        const username = m.username || m.name;
-        const totalSeasonPts = seasonPointsMap[username] || 0;
+        const username = m.username || m.name || 'Unknown';
+        const lookupKey = cleanStr(username);
+        const totalSeasonPts = seasonPointsMap[lookupKey] || 0;
 
         return { 
             username, 
@@ -737,7 +738,13 @@
         };
     });
 
+    // Sort descending by cumulative season points
     userList.sort((a, b) => b.score - a.score);
+
+    if (userList.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500">No managers found.</td></tr>`;
+        return;
+    }
 
     userList.forEach((item, index) => {
         tbody.innerHTML += `
