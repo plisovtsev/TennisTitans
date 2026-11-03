@@ -768,6 +768,7 @@
     const lines = rawText.split('\n');
     let updatedCount = 0;
 
+    // 1. Process player CSV data and update the database
     for (let line of lines) {
         const cols = line.split(',').map(c => c.trim());
         if (cols.length < 4 || cols[0].toLowerCase().includes('name') || cols[0] === '') continue;
@@ -798,54 +799,56 @@
         updatedCount++;
     }
 
-    // Refresh global players and managers lists from the database
+    // 2. Fetch freshly updated player and manager lists
     await fetchPlayers();
     await fetchManagers();
 
     const currentWeekTitle = activeWeekText || 'Week 1';
 
-    let bestManager = null;
-    let maxWeeklyScore = -1;
-
-    // Iterate through all managers and compute their weekly score based on current player weekly_points
+    // 3. Calculate weekly scores for all non-admin managers (enforcing 10-player minimum)
+    let scoredManagers = [];
     for (let mgr of managersList) {
         if (mgr.role === 'admin') continue;
         const rosterArr = mgr.roster || [];
         
         let weekScore = 0;
-        // Enforce 10-player minimum eligibility rule
         if (rosterArr.length >= 10) {
             rosterArr.forEach(rName => {
                 const found = players.find(p => p.name.toLowerCase() === rName.toLowerCase());
-                if (found) {
-                    weekScore += (found.weekly_points || 0);
-                }
+                if (found) weekScore += (found.weekly_points || 0);
             });
         }
-
-        // Track the absolute highest scorer
-        if (weekScore > maxWeeklyScore) {
-            maxWeeklyScore = weekScore;
-            bestManager = mgr;
-        }
+        scoredManagers.push({ username: mgr.username, score: weekScore });
     }
 
-    // Save the correct true winner to Supabase weekly_winners
-    if (bestManager && maxWeeklyScore >= 0) {
+    // 4. Sort managers by weekly score in descending order
+    scoredManagers.sort((a, b) => b.score - a.score);
+
+    // 5. Extract top 3 managers for the Gold, Silver, and Bronze podium
+    const top3 = scoredManagers.slice(0, 3).map((m, idx) => ({
+        rank: idx + 1,
+        manager: m.username,
+        score: m.score
+    }));
+
+    // 6. Archive top 3 podium result into Supabase weekly_winners
+    if (top3.length > 0) {
         await sb.from('weekly_winners').upsert([
             {
                 week: currentWeekTitle,
-                manager_name: bestManager.username,
-                score: maxWeeklyScore
+                manager_name: top3[0].manager,
+                score: top3[0].score,
+                podium: top3
             }
         ], { onConflict: 'week' });
     }
 
+    // 7. Refresh all UI views
     renderMarket();
     renderRoster();
     renderLeaderboard();
 
-    alert(`Success!\n- Updated ${updatedCount} players.\n- True Champion for ${currentWeekTitle}: ${bestManager ? bestManager.username : 'None'} (${maxWeeklyScore} pts)`);
+    alert(`Success!\n- Updated ${updatedCount} players.\n- Champion for ${currentWeekTitle}: ${top3.length > 0 ? top3[0].manager : 'None'} (${top3.length > 0 ? top3[0].score : 0} pts)`);
 }
     </script>
 </body>
