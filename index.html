@@ -712,13 +712,12 @@ async function inspectManagerRoster(managerName) {
             renderLeaderboard();
         }
 
-     async function renderLeaderboard() {
+    async function renderLeaderboard() {
     const sb = getSupabase();
     if (!sb) return;
 
     const tbody = document.getElementById('leaderboard-table-body');
     const scoreHeader = document.getElementById('lb-score-header');
-    const col3Header = document.getElementById('lb-col3-header');
     if (!tbody) return;
     tbody.innerHTML = '';
 
@@ -727,7 +726,6 @@ async function inspectManagerRoster(managerName) {
     // --- WEEKLY WINNERS TAB ---
     if (currentLbTab === 'weekly') {
         if (scoreHeader) scoreHeader.innerText = "Weekly Score";
-        if (col3Header) col3Header.innerText = "Award / Badge";
         
         const { data: winnersData, error } = await sb.from('weekly_winners').select('*').order('id', { ascending: false });
         
@@ -766,10 +764,17 @@ async function inspectManagerRoster(managerName) {
                     icon = '🥉';
                 }
 
+                // Clickable manager name button
+                const safeName = (p.manager || '').replace(/'/g, "\\'");
+
                 tbody.innerHTML += `
                     <tr class="hover:bg-slate-800/40 transition">
                         <td class="p-3.5 font-black ${rankColor} pl-4">${icon} #${p.rank}</td>
-                        <td class="p-3.5 font-medium text-white">${p.manager}</td>
+                        <td class="p-3.5 font-medium">
+                            <button onclick="inspectManagerRoster('${safeName}')" class="text-amber-400 hover:underline text-left cursor-pointer font-semibold">
+                                ${p.manager}
+                            </button>
+                        </td>
                         <td class="p-3.5 font-mono text-slate-300">${badge}</td>
                         <td class="p-3.5 font-mono text-right font-bold text-emerald-400">+${(p.score || 0).toLocaleString()} pts</td>
                     </tr>
@@ -781,11 +786,9 @@ async function inspectManagerRoster(managerName) {
 
     // --- OVERALL SEASON STANDINGS TAB ---
     if (scoreHeader) scoreHeader.innerText = "Total Season Points";
-    if (col3Header) col3Header.innerText = "Portfolio Value";
     
     await fetchManagers();
 
-    // Fetch all historical weekly manager scores
     const { data: allWeeklyScores } = await sb.from('weekly_manager_scores').select('*');
     
     const seasonPointsMap = {};
@@ -819,7 +822,6 @@ async function inspectManagerRoster(managerName) {
         };
     });
 
-    // Sort descending by cumulative season points
     userList.sort((a, b) => b.score - a.score);
 
     if (userList.length === 0) {
@@ -828,10 +830,17 @@ async function inspectManagerRoster(managerName) {
     }
 
     userList.forEach((item, index) => {
+        // Clickable manager name button
+        const safeUsername = (item.username || '').replace(/'/g, "\\'");
+
         tbody.innerHTML += `
             <tr class="hover:bg-slate-800/40 transition">
                 <td class="p-3.5 font-black text-amber-400">#${index + 1}</td>
-                <td class="p-3.5 font-medium text-white">${item.username}</td>
+                <td class="p-3.5 font-medium">
+                    <button onclick="inspectManagerRoster('${safeUsername}')" class="text-amber-400 hover:underline text-left cursor-pointer font-semibold">
+                        ${item.username}
+                    </button>
+                </td>
                 <td class="p-3.5 font-mono text-slate-300">$${item.portfolioValue.toLocaleString()}</td>
                 <td class="p-3.5 font-mono text-right font-bold text-emerald-400">+${item.score.toLocaleString()}</td>
             </tr>
