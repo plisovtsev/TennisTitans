@@ -771,55 +771,48 @@
     }
 
     await fetchPlayers();
+    await fetchManagers();
 
-    const { data: managersData } = await sb.from('managers').select('*');
-    const { data: rostersData } = await sb.from('rosters').select('*');
-    const activeWeekTitle = document.getElementById('active-week-input')?.value || 'Week 1';
+    const activeWeekTitle = activeWeekText || 'Week 1';
 
     let bestManager = null;
     let maxWeeklyScore = -1;
 
-    if (managersData && rostersData) {
-        for (let mgr of managersData) {
-            if (mgr.role === 'admin') continue;
-            const mgrRoster = rostersData.filter(r => r.manager_id === mgr.id || r.manager_name === mgr.username);
-            
-            let weekScore = 0;
-            if (mgrRoster.length >= 10) {
-                for (let item of mgrRoster) {
-                    const playerObj = players.find(p => p.id == item.player_id || p.name.toLowerCase() === (item.player_name || '').toLowerCase());
-                    if (playerObj) {
-                        weekScore += (weeklyPointsMap[playerObj.name.toLowerCase()] || 0);
-                    }
-                }
-            }
+    // Determine the weekly winner across all managers (enforcing 10-player minimum)
+    for (let mgr of managersList) {
+        if (mgr.role === 'admin') continue;
+        const rosterArr = mgr.roster || [];
+        
+        let weekScore = 0;
+        if (rosterArr.length >= 10) {
+            rosterArr.forEach(rName => {
+                const found = players.find(p => p.name.toLowerCase() === rName.toLowerCase());
+                if (found) weekScore += (found.weekly_points || 0);
+            });
+        }
 
-            const currentTotal = parseInt(mgr.total_points) || 0;
-            const newTotalPoints = currentTotal + weekScore;
-            
-            await sb.from('managers').update({ total_points: newTotalPoints }).eq('id', mgr.id);
-
-            if (weekScore > maxWeeklyScore) {
-                maxWeeklyScore = weekScore;
-                bestManager = mgr;
-            }
+        if (weekScore > maxWeeklyScore) {
+            maxWeeklyScore = weekScore;
+            bestManager = mgr;
         }
     }
 
+    // Save or update the winner entry for this specific week in Supabase
     if (bestManager && maxWeeklyScore >= 0) {
-        await sb.from('weekly_winners').insert([{
-            week: activeWeekTitle,
-            manager_name: bestManager.username || bestManager.name,
-            score: maxWeeklyScore
-        }]);
+        await sb.from('weekly_winners').upsert([
+            {
+                week: activeWeekTitle,
+                manager_name: bestManager.username || bestManager.name,
+                score: maxWeeklyScore
+            }
+        ], { onConflict: 'week' });
     }
 
     renderMarket();
     renderRoster();
-    if (typeof fetchStandings === 'function') fetchStandings();
-    if (typeof fetchWeeklyWinners === 'function') fetchWeeklyWinners();
+    renderLeaderboard();
 
-    alert(`Success!\n- Updated ${updatedCount} players.\n- Top Manager: ${bestManager ? (bestManager.username || bestManager.name) : 'None'} (${maxWeeklyScore} pts this week)`);
+    alert(`Success!\n- Updated ${updatedCount} players.\n- Champion for ${activeWeekTitle}: ${bestManager ? bestManager.username : 'None'} (${maxWeeklyScore} pts)`);
 }
     </script>
 </body>
