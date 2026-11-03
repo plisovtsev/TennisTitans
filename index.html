@@ -302,6 +302,25 @@
 
             await fetchPlayers();
             await fetchManagers();
+            
+            // --- NEW: Calculate and display total season points ---
+            const sb = getSupabase();
+            let totalSeasonPts = 0;
+            if (sb && currentManager) {
+                const cleanStr = str => str ? str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
+                const { data: weeklyScores } = await sb.from('weekly_manager_scores').select('score, manager_name');
+                if (weeklyScores) {
+                    weeklyScores.forEach(row => {
+                        if (cleanStr(row.manager_name) === cleanStr(currentManager.username)) {
+                            totalSeasonPts += (row.score || 0);
+                        }
+                    });
+                }
+            }
+            const pointsEl = document.getElementById('stat-season-points');
+            if (pointsEl) pointsEl.innerText = totalSeasonPts.toLocaleString();
+            // ------------------------------------------------------
+
             updateUserData();
             renderRoster();
             renderMarket();
