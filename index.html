@@ -637,27 +637,29 @@
 
     const tbody = document.getElementById('leaderboard-table-body');
     const scoreHeader = document.getElementById('lb-score-header');
+    const col3Header = document.getElementById('lb-col3-header'); // Optional portfolio header element
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    // If viewing Weekly Winners tab
+    // --- WEEKLY WINNERS VIEW ---
     if (currentLbTab === 'weekly') {
         if (scoreHeader) scoreHeader.innerText = "Weekly Score";
+        if (col3Header) col3Header.innerText = "Award / Badge";
         
         const { data: winnersData, error } = await sb.from('weekly_winners').select('*').order('id', { ascending: false });
         
         if (error || !winnersData || winnersData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500">No weekly winners recorded yet. Run a weekly ingestion to crown champions!</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500">No weekly winners recorded yet.</td></tr>`;
             return;
         }
 
         winnersData.forEach((w) => {
-            // Fallback gracefully if podium json is missing
             let podium = w.podium;
             if (!podium || !Array.isArray(podium)) {
                 podium = [{ rank: 1, manager: w.manager_name, score: w.score }];
             }
 
+            // Header row for the week
             tbody.innerHTML += `
                 <tr class="bg-slate-950/40 border-t border-slate-800">
                     <td colspan="4" class="p-3 font-bold text-amber-400 bg-slate-900/60 flex items-center justify-between">
@@ -684,7 +686,7 @@
 
                 tbody.innerHTML += `
                     <tr class="hover:bg-slate-800/40 transition">
-                        <td class="p-3.5 font-black ${rankColor} pl-8">${icon} #${p.rank}</td>
+                        <td class="p-3.5 font-black ${rankColor} pl-4">${icon} #${p.rank}</td>
                         <td class="p-3.5 font-medium text-white">${p.manager}</td>
                         <td class="p-3.5 font-mono text-slate-300">${badge}</td>
                         <td class="p-3.5 font-mono text-right font-bold text-emerald-400">+${(p.score || 0).toLocaleString()} pts</td>
@@ -695,19 +697,20 @@
         return;
     }
 
-    // Otherwise, render Overall Season Standings
+    // --- OVERALL SEASON STANDINGS VIEW ---
     if (scoreHeader) scoreHeader.innerText = "Total Season Points";
+    if (col3Header) col3Header.innerText = "Portfolio Value";
     await fetchManagers();
+
+    const cleanStr = str => str ? str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
 
     const userList = managersList.map(m => {
         let portfolioValue = m.balance || 0;
         let weeklyPts = 0;
         const rosterArr = m.roster || [];
         
-        const normalize = str => str ? str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
-
         rosterArr.forEach(rName => {
-            const found = players.find(pl => normalize(pl.name) === normalize(rName));
+            const found = players.find(pl => cleanStr(pl.name) === cleanStr(rName));
             if (found) {
                 portfolioValue += found.price;
                 weeklyPts += (found.weekly_points || 0);
