@@ -640,7 +640,7 @@
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    // If viewing Weekly Winners, fetch historical records from the database
+    // If viewing Weekly Winners tab
     if (currentLbTab === 'weekly') {
         if (scoreHeader) scoreHeader.innerText = "Weekly Score";
         
@@ -652,12 +652,12 @@
         }
 
         winnersData.forEach((w) => {
-            // Parse the podium array if stored as JSON, or handle single winner records gracefully
-            const podium = w.podium || [
-                { rank: 1, manager: w.manager_name, score: w.score }
-            ];
+            // Fallback gracefully if podium json is missing
+            let podium = w.podium;
+            if (!podium || !Array.isArray(podium)) {
+                podium = [{ rank: 1, manager: w.manager_name, score: w.score }];
+            }
 
-            // Render a card or grouping for each week's podium
             tbody.innerHTML += `
                 <tr class="bg-slate-950/40 border-t border-slate-800">
                     <td colspan="4" class="p-3 font-bold text-amber-400 bg-slate-900/60 flex items-center justify-between">
@@ -704,8 +704,10 @@
         let weeklyPts = 0;
         const rosterArr = m.roster || [];
         
+        const normalize = str => str ? str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
+
         rosterArr.forEach(rName => {
-            const found = players.find(pl => pl.name.toLowerCase() === rName.toLowerCase());
+            const found = players.find(pl => normalize(pl.name) === normalize(rName));
             if (found) {
                 portfolioValue += found.price;
                 weeklyPts += (found.weekly_points || 0);
@@ -716,7 +718,7 @@
         const seasonPts = (m.season_points || 0) + validWeeklyScore;
 
         return { 
-            username: m.username, 
+            username: m.username || m.name, 
             portfolioValue, 
             score: seasonPts 
         };
