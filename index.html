@@ -504,8 +504,11 @@
 }
 
         function renderMarket() {
-    const container = document.getElementById('market-container'); // or whatever container ID your market table uses
+    const container = document.getElementById('market-container') || document.querySelector('.overflow-x-auto')?.parentElement;
     if (!container) return;
+
+    // Use global players array safely
+    const displayedPlayers = window.filteredPlayers || window.players || [];
 
     let html = `
         <div class="overflow-x-auto">
@@ -524,19 +527,16 @@
                 <tbody class="divide-y divide-slate-800/60 text-sm">
     `;
 
-    // Filter or map your players array here based on your search/filter logic
-    const displayedPlayers = window.filteredPlayers || players;
-
     if (displayedPlayers.length === 0) {
-        html += `<tr><td colspan="7" class="py-6 text-center text-slate-500">No players found.</td></tr>`;
+        html += `<tr><td colspan="7" class="py-6 text-center text-slate-500">No players found in the database. Try running ingestion or check Supabase connection.</td></tr>`;
     } else {
         displayedPlayers.forEach(p => {
             html += `
                 <tr class="hover:bg-slate-800/30 transition-colors">
-                    <td class="py-4 px-4 font-semibold text-white">${p.name}</td>
-                    <td class="py-4 px-4"><span class="px-2 py-0.5 text-xs rounded bg-slate-800 text-slate-300">${p.tour}</span></td>
+                    <td class="py-4 px-4 font-semibold text-white">${p.name || 'Unknown'}</td>
+                    <td class="py-4 px-4"><span class="px-2 py-0.5 text-xs rounded bg-slate-800 text-slate-300">${p.tour || 'ATP'}</span></td>
                     <td class="py-4 px-4 text-slate-300">${p.country || ''}</td>
-                    <td class="py-4 px-4 font-medium text-amber-400">$${p.price.toLocaleString()}</td>
+                    <td class="py-4 px-4 font-medium text-amber-400">$${(p.price || 0).toLocaleString()}</td>
                     <td class="py-4 px-4 text-slate-200">${(p.points || 0).toLocaleString()}</td>
                     <td class="py-4 px-4 font-bold text-amber-400">+${(p.weekly_points || 0).toLocaleString()}</td>
                     <td class="py-4 px-4 text-right">
@@ -548,7 +548,16 @@
     }
 
     html += `</tbody></table></div>`;
-    container.innerHTML = html;
+    
+    // If your container is specifically the wrapper or if you need to target a designated div:
+    const targetDiv = document.getElementById('market-container');
+    if (targetDiv) {
+        targetDiv.innerHTML = html;
+    } else {
+        // Fallback: replace the table area inside the view
+        const tableArea = document.querySelector('table')?.parentElement;
+        if (tableArea) tableArea.outerHTML = html;
+    }
 }
 
        async function buyPlayer(name) {
