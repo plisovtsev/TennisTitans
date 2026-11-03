@@ -636,14 +636,18 @@
     if (!sb) return;
 
     const tbody = document.getElementById('leaderboard-table-body');
+    const scoreHeader = document.getElementById('lb-score-header');
     if (!tbody) return;
     tbody.innerHTML = '';
 
+    // If viewing Weekly Winners, fetch historical records from the database
     if (currentLbTab === 'weekly') {
+        if (scoreHeader) scoreHeader.innerText = "Winning Score";
+        
         const { data: winnersData, error } = await sb.from('weekly_winners').select('*').order('id', { ascending: false });
         
         if (error || !winnersData || winnersData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500">No weekly winners recorded yet.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500">No weekly winners recorded yet. Run a weekly ingestion to crown a winner!</td></tr>`;
             return;
         }
 
@@ -651,8 +655,8 @@
             tbody.innerHTML += `
                 <tr class="hover:bg-slate-800/40 transition">
                     <td class="p-3.5 font-black text-amber-400">#${index + 1}</td>
-                    <td class="p-3.5 font-medium text-white">${w.manager_name} <span class="text-xs text-slate-400 ml-2">(${w.week})</span></td>
-                    <td class="p-3.5 font-mono text-slate-300">Winner Trophy</td>
+                    <td class="p-3.5 font-medium text-white">${w.manager_name} <span class="text-xs text-amber-400/80 ml-2 font-mono bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">${w.week}</span></td>
+                    <td class="p-3.5 font-mono text-slate-300">🏆 Weekly Champion</td>
                     <td class="p-3.5 font-mono text-right font-bold text-emerald-400">+${(w.score || 0).toLocaleString()} pts</td>
                 </tr>
             `;
@@ -660,6 +664,8 @@
         return;
     }
 
+    // Otherwise, render Overall Season Standings
+    if (scoreHeader) scoreHeader.innerText = "Total Season Points";
     await fetchManagers();
 
     const userList = managersList.map(m => {
@@ -675,7 +681,7 @@
             }
         });
 
-        // STRICT RULE: Must have at least 10 players to score weekly points
+        // 10-player minimum eligibility rule check
         const validWeeklyScore = rosterArr.length >= 10 ? weeklyPts : 0;
         const seasonPts = (m.season_points || 0) + validWeeklyScore;
 
