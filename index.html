@@ -424,6 +424,52 @@
             showAuth();
         }
 
+async function inspectManagerRoster(managerName) {
+            const sb = getSupabase();
+            if (!sb) return;
+
+            const mgr = managersList.find(m => (m.username || m.name || '').toLowerCase() === managerName.toLowerCase());
+            if (!mgr) {
+                alert("Manager details not found.");
+                return;
+            }
+
+            document.getElementById('modal-manager-title').innerText = `${mgr.username || mgr.name}'s Active Squad`;
+            const tbody = document.getElementById('modal-roster-body');
+            tbody.innerHTML = `<tr><td colspan="3" class="py-4 text-center text-slate-500">Loading squad...</td></tr>`;
+            
+            document.getElementById('manager-modal').classList.remove('hidden');
+
+            const rosterArr = mgr.roster || [];
+            let html = '';
+
+            if (rosterArr.length === 0) {
+                html = `<tr><td colspan="3" class="py-6 text-center text-slate-500">This manager has no players in their squad.</td></tr>`;
+            } else {
+                rosterArr.forEach(pName => {
+                    const cleanStr = str => str ? str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
+                    const playerObj = players.find(p => cleanStr(p.name) === cleanStr(pName));
+
+                    const tour = playerObj ? (playerObj.tour || 'ATP') : 'ATP';
+                    const weeklyPts = playerObj ? `+${(playerObj.weekly_points || 0).toLocaleString()}` : '+0';
+
+                    html += `
+                        <tr class="hover:bg-slate-800/30 transition">
+                            <td class="py-3.5 font-semibold text-white">${pName}</td>
+                            <td class="py-3.5"><span class="px-2 py-0.5 text-xs rounded bg-slate-800 text-slate-300">${tour}</span></td>
+                            <td class="py-3.5 font-bold text-right text-emerald-400">${weeklyPts}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            tbody.innerHTML = html;
+        }
+
+        function closeManagerModal() {
+            document.getElementById('manager-modal').classList.add('hidden');
+        }
+        
         function updateUserData() {
             if (!currentManager) return;
             document.getElementById('stat-budget').innerText = (currentManager.balance || 0).toLocaleString();
@@ -911,5 +957,31 @@
     alert(`Success!\n- Updated ${updatedCount} players.\n- Champion for ${currentWeekTitle}: ${top3[0].manager} (+${top3[0].score} pts)`);
 }
     </script>
+    <!-- MANAGER ROSTER INSPECTION MODAL -->
+    <div id="manager-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl m-4">
+            <div class="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
+                <h3 id="modal-manager-title" class="font-bold text-lg text-amber-400">Manager Squad</h3>
+                <button onclick="closeManagerModal()" class="text-slate-400 hover:text-white text-xl font-bold px-2 cursor-pointer">&times;</button>
+            </div>
+            <div class="p-6 max-h-[70vh] overflow-y-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800 pb-2">
+                            <th class="pb-3">Player Name</th>
+                            <th class="pb-3">Tour</th>
+                            <th class="pb-3 text-right">Last Week Points</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modal-roster-body" class="divide-y divide-slate-800/60 text-sm">
+                        <!-- Populated dynamically on click -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-4 border-t border-slate-800 bg-slate-950/60 flex justify-end">
+                <button onclick="closeManagerModal()" class="bg-slate-800 hover:bg-slate-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition cursor-pointer">Close</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
