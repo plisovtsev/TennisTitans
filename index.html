@@ -798,16 +798,12 @@
         updatedCount++;
     }
 
-    // Refresh players and managers from Supabase
     await fetchPlayers();
     await fetchManagers();
 
     const currentWeekTitle = activeWeekText || 'Week 1';
 
     let scoredManagers = [];
-    
-    console.log("--- STARTING WEEKLY PODIUM CALCULATION ---");
-
     for (let mgr of managersList) {
         if (mgr.role === 'admin') continue;
         const rosterArr = mgr.roster || [];
@@ -816,27 +812,14 @@
         if (rosterArr.length >= 10) {
             rosterArr.forEach(rName => {
                 const found = players.find(p => p.name.toLowerCase() === rName.toLowerCase());
-                if (found) {
-                    weekScore += (found.weekly_points || 0);
-                }
+                if (found) weekScore += (found.weekly_points || 0);
             });
         }
-
-        console.log(`Manager: ${mgr.username} | Roster Count: ${rosterArr.length} | Calculated Weekly Score: ${weekScore}`);
-        
-        scoredManagers.push({ 
-            username: mgr.username || mgr.name, 
-            score: weekScore,
-            rosterCount: rosterArr.length 
-        });
+        scoredManagers.push({ username: mgr.username, score: weekScore });
     }
 
-    // Sort descending by score
     scoredManagers.sort((a, b) => b.score - a.score);
 
-    console.log("Sorted Podium Results:", scoredManagers);
-
-    // Map top 3
     const top3 = scoredManagers.slice(0, 3).map((m, idx) => ({
         rank: idx + 1,
         manager: m.username,
@@ -858,7 +841,7 @@
     renderRoster();
     renderLeaderboard();
 
-    alert(`Success!\n- Updated ${updatedCount} players.\n- True #1 Champion: ${top3[0].manager} (${top3[0].score} pts)`);
+    alert(`Success!\n- Updated ${updatedCount} players.\n- Winner: ${top3[0].manager} (+${top3[0].score} pts)`);
 }
     </script>
 </body>
