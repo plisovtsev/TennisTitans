@@ -651,47 +651,37 @@
 
     for (let line of lines) {
         const cols = line.split(',').map(c => c.trim());
-        // Skip header or malformed rows
         if (cols.length < 4 || cols[0].toLowerCase().includes('name') || cols[0] === '') continue;
 
         let name = cols[0];
         let tour = cols[1].toUpperCase() === 'WTA' ? 'WTA' : 'ATP';
         let country = cols[2];
-        
-        // Col 3: Season/ATP points, Col 4: Weekly performance points
         let newPoints = parseInt(cols[3].replace(/,/g, '')) || 0;
         let weeklyPerf = parseInt((cols[4] ? cols[4] : '0').replace(/,/g, '')) || 0;
 
         weeklyPointsMap[name.toLowerCase()] = weeklyPerf;
-        let targetPrice = newPoints * 100; // Price scale based on points
+        let targetPrice = newPoints * 100;
 
         const existing = players.find(p => p.name.toLowerCase() === name.toLowerCase());
         
         if (existing) {
-            // Apply 10% maximum price fluctuation cap relative to current price
             const maxP = existing.price * 1.10;
             const minP = existing.price * 0.90;
             if (targetPrice > maxP) targetPrice = Math.round(maxP);
             if (targetPrice < minP) targetPrice = Math.round(minP);
 
-            const { error } = await sb.from('players')
-                .update({ price: targetPrice, points: newPoints, tour: tour, country: country })
+            await sb.from('players')
+                .update({ price: targetPrice, points: newPoints, weekly_points: weeklyPerf, tour: tour, country: country })
                 .eq('id', existing.id);
-            
-            if (error) console.error("Update error for:", name, error);
         } else {
-            const { error } = await sb.from('players')
-                .insert([{ name: name, tour: tour, country: country, price: targetPrice, points: newPoints }]);
-            
-            if (error) console.error("Insert error for:", name, error);
+            await sb.from('players')
+                .insert([{ name: name, tour: tour, country: country, price: targetPrice, points: newPoints, weekly_points: weeklyPerf }]);
         }
         updatedCount++;
     }
 
-    // Refresh global players array from Supabase
     await fetchPlayers();
 
-    // Calculate manager scores & update standings
     const { data: managersData } = await sb.from('managers').select('*');
     const { data: rostersData } = await sb.from('rosters').select('*');
     const activeWeekTitle = document.getElementById('active-week-input')?.value || 'Week 1';
@@ -702,20 +692,21 @@
     if (managersData && rostersData) {
         for (let mgr of managersData) {
             if (mgr.role === 'admin') continue;
-            const mgrRoster = rostersData.filter(r => r.manager_id === mgr.id);
+            const mgrRoster = rostersData.filter(r => r.manager_id === mgr.id || r.manager_name === mgr.username);
             
             let weekScore = 0;
-            // 10-player eligibility requirement
             if (mgrRoster.length >= 10) {
                 for (let item of mgrRoster) {
-                    const playerObj = players.find(p => p.id == item.player_id);
+                    const playerObj = players.find(p => p.id == item.player_id || p.name.toLowerCase() === (item.player_name || '').toLowerCase());
                     if (playerObj) {
                         weekScore += (weeklyPointsMap[playerObj.name.toLowerCase()] || 0);
                     }
                 }
             }
 
-            const newTotalPoints = (mgr.total_points || 0) + weekScore;
+            const currentTotal = parseInt(mgr.total_points) || 0;
+            const newTotalPoints = currentTotal + weekScore;
+            
             await sb.from('managers').update({ total_points: newTotalPoints }).eq('id', mgr.id);
 
             if (weekScore > maxWeeklyScore) {
@@ -725,22 +716,20 @@
         }
     }
 
-    // Record weekly winner if table exists
-    if (bestManager) {
+    if (bestManager && maxWeeklyScore >= 0) {
         await sb.from('weekly_winners').insert([{
             week: activeWeekTitle,
             manager_name: bestManager.username || bestManager.name,
             score: maxWeeklyScore
-        }]).select();
+        }]);
     }
 
-    // Re-render UI views
     renderMarket();
     renderRoster();
     if (typeof fetchStandings === 'function') fetchStandings();
     if (typeof fetchWeeklyWinners === 'function') fetchWeeklyWinners();
 
-    alert(`Success!\n- Updated ${updatedCount} players.\n- Top Manager this week: ${bestManager ? bestManager.username : 'None'} (${maxWeeklyScore} pts)`);
+    alert(`Success!\n- Updated ${updatedCount} players.\n- Top Manager: ${bestManager ? (bestManager.username || bestManager.name) : 'None'} (${maxWeeklyScore} pts this week)`);
 }
     </script>
 </body>
