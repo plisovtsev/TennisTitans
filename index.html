@@ -817,6 +817,7 @@
         updatedCount++;
     }
 
+    // Refresh memory with latest database state
     await fetchPlayers();
     await fetchManagers();
 
@@ -825,38 +826,36 @@
 
     let scoredManagers = [];
     for (let mgr of managersList) {
-        if (mgr.role === 'admin') continue;
+        // DO NOT SKIP ADMIN! Score all managers who participate.
+        const displayName = mgr.username || mgr.name || mgr.email || 'Unknown';
         const rosterArr = mgr.roster || [];
         
         let weekScore = 0;
-        if (rosterArr.length >= 10) {
-            rosterArr.forEach(rName => {
-                const found = players.find(p => cleanStr(p.name) === cleanStr(rName));
-                if (found) {
-                    weekScore += (found.weekly_points || 0);
-                }
-            });
-        }
+        rosterArr.forEach(rName => {
+            const found = players.find(p => cleanStr(p.name) === cleanStr(rName));
+            if (found) {
+                weekScore += (found.weekly_points || 0);
+            }
+        });
         
-        const username = mgr.username || mgr.name;
         scoredManagers.push({ 
-            username, 
+            username: displayName, 
             score: weekScore,
             roster: rosterArr 
         });
 
-        // Save every manager's weekly score and roster snapshot to Supabase
+        // Save into weekly_manager_scores for full audit history
         await sb.from('weekly_manager_scores').upsert([
             {
                 week: currentWeekTitle,
-                manager_name: username,
+                manager_name: displayName,
                 score: weekScore,
                 roster_snapshot: rosterArr
             }
         ], { onConflict: 'week, manager_name' });
     }
 
-    // Sort descending by calculated weekly score for podium calculation
+    // Sort descending by score
     scoredManagers.sort((a, b) => b.score - a.score);
 
     const top3 = scoredManagers.slice(0, 3).map((m, idx) => ({
@@ -881,7 +880,7 @@
     renderRoster();
     renderLeaderboard();
 
-    alert(`Success!\n- Updated ${updatedCount} players.\n- Saved all manager weekly scores for ${currentWeekTitle}!\n- Champion: ${top3[0].manager} (+${top3[0].score} pts)`);
+    alert(`Success!\n- Updated ${updatedCount} players.\n- Champion for ${currentWeekTitle}: ${top3[0].manager} (+${top3[0].score} pts)`);
 }
     </script>
 </body>
