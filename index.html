@@ -627,17 +627,42 @@
         }
 
         async function renderLeaderboard() {
-    await fetchManagers();
+    const sb = getSupabase();
+    if (!sb) return;
+
     const tbody = document.getElementById('leaderboard-table-body');
     if (!tbody) return;
     tbody.innerHTML = '';
 
+    // If viewing Weekly Winners, fetch historical records from the database
+    if (currentLbTab === 'weekly') {
+        const { data: winnersData, error } = await sb.from('weekly_winners').select('*').order('id', { ascending: false });
+        
+        if (error || !winnersData || winnersData.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500">No weekly winners recorded yet. Run a weekly ingestion to crown a winner!</td></tr>`;
+            return;
+        }
+
+        winnersData.forEach((w, index) => {
+            tbody.innerHTML += `
+                <tr class="hover:bg-slate-800/40 transition">
+                    <td class="p-3.5 font-black text-amber-400">#${index + 1}</td>
+                    <td class="p-3.5 font-medium text-white">${w.manager_name} <span class="text-xs text-slate-400 ml-2">(${w.week})</span></td>
+                    <td class="p-3.5 font-mono text-slate-300">Winner Trophy</td>
+                    <td class="p-3.5 font-mono text-right font-bold text-emerald-400">+${(w.score || 0).toLocaleString()} pts</td>
+                </tr>
+            `;
+        });
+        return;
+    }
+
+    // Otherwise, render Overall Season Standings
+    await fetchManagers();
+
     const userList = managersList.map(m => {
         let portfolioValue = m.balance || 0;
         let weeklyPts = 0;
-        let seasonPts = m.season_points || 0;
-
-        // Calculate portfolio value and sum up weekly points from the manager's roster names
+        
         (m.roster || []).forEach(rName => {
             const found = players.find(pl => pl.name.toLowerCase() === rName.toLowerCase());
             if (found) {
@@ -646,24 +671,26 @@
             }
         });
 
+        // Enforce the 10-player minimum rule for scoring eligibility
+        const validScore = (m.roster || []).length >= 10 ? weeklyPts : 0;
+        const seasonPts = (m.season_points || 0) + validScore;
+
         return { 
             username: m.username, 
             portfolioValue, 
-            weeklyPoints: weeklyPts, 
-            seasonPoints: seasonPts > 0 ? seasonPts : weeklyPts // fallback to weekly if season points haven't accumulated yet
+            score: seasonPts 
         };
     });
 
-    userList.sort((a, b) => currentLbTab === 'season' ? b.seasonPoints - a.seasonPoints : b.weeklyPoints - a.weeklyPoints);
+    userList.sort((a, b) => b.score - a.score);
 
     userList.forEach((item, index) => {
-        const score = currentLbTab === 'season' ? item.seasonPoints : item.weeklyPoints;
         tbody.innerHTML += `
             <tr class="hover:bg-slate-800/40 transition">
                 <td class="p-3.5 font-black text-amber-400">#${index + 1}</td>
                 <td class="p-3.5 font-medium text-white">${item.username}</td>
                 <td class="p-3.5 font-mono text-slate-300">$${item.portfolioValue.toLocaleString()}</td>
-                <td class="p-3.5 font-mono text-right font-bold text-emerald-400">+${score.toLocaleString()}</td>
+                <td class="p-3.5 font-mono text-right font-bold text-emerald-400">+${item.score.toLocaleString()}</td>
             </tr>
         `;
     });
