@@ -449,6 +449,7 @@
     const playerNames = currentManager.roster || [];
     let html = '';
     let totalWeeklyPointsSum = 0;
+    const isEligible = playerNames.length >= 10;
 
     if (playerNames.length === 0) {
         html = `<tr><td colspan="7" class="py-6 text-center text-slate-500">Your squad is currently empty. Visit the Transfer Market to build your team.</td></tr>`;
@@ -468,7 +469,9 @@
             }
 
             const weeklyPts = p.weekly_points || 0;
-            totalWeeklyPointsSum += weeklyPts;
+            if (isEligible) {
+                totalWeeklyPointsSum += weeklyPts;
+            }
             
             html += `
                 <tr class="hover:bg-slate-800/30 transition-colors">
@@ -485,10 +488,12 @@
             `;
         });
 
-        // Add summary row at the bottom of the table
+        // Summary row with 10-player minimum rule applied
         html += `
             <tr class="bg-slate-950/80 border-t border-slate-800 font-bold">
-                <td colspan="5" class="p-3.5 text-right text-slate-300 uppercase tracking-wider text-xs">Total Weekly Points:</td>
+                <td colspan="5" class="p-3.5 text-right text-slate-300 uppercase tracking-wider text-xs">
+                    Total Weekly Points ${!isEligible ? '<span class="text-red-400 font-normal normal-case">(Incomplete Squad: Need 10 players)</span>' : ''}:
+                </td>
                 <td class="p-3.5 text-amber-400 text-base">+${totalWeeklyPointsSum.toLocaleString()}</td>
                 <td></td>
             </tr>
@@ -634,12 +639,11 @@
     if (!tbody) return;
     tbody.innerHTML = '';
 
-    // If viewing Weekly Winners, fetch historical records from the database
     if (currentLbTab === 'weekly') {
         const { data: winnersData, error } = await sb.from('weekly_winners').select('*').order('id', { ascending: false });
         
         if (error || !winnersData || winnersData.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500">No weekly winners recorded yet. Run a weekly ingestion to crown a winner!</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="4" class="py-6 text-center text-slate-500">No weekly winners recorded yet.</td></tr>`;
             return;
         }
 
@@ -656,14 +660,14 @@
         return;
     }
 
-    // Otherwise, render Overall Season Standings
     await fetchManagers();
 
     const userList = managersList.map(m => {
         let portfolioValue = m.balance || 0;
         let weeklyPts = 0;
+        const rosterArr = m.roster || [];
         
-        (m.roster || []).forEach(rName => {
+        rosterArr.forEach(rName => {
             const found = players.find(pl => pl.name.toLowerCase() === rName.toLowerCase());
             if (found) {
                 portfolioValue += found.price;
@@ -671,9 +675,9 @@
             }
         });
 
-        // Enforce the 10-player minimum rule for scoring eligibility
-        const validScore = (m.roster || []).length >= 10 ? weeklyPts : 0;
-        const seasonPts = (m.season_points || 0) + validScore;
+        // STRICT RULE: Must have at least 10 players to score weekly points
+        const validWeeklyScore = rosterArr.length >= 10 ? weeklyPts : 0;
+        const seasonPts = (m.season_points || 0) + validWeeklyScore;
 
         return { 
             username: m.username, 
