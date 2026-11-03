@@ -436,31 +436,54 @@
         }
 
         function renderRoster() {
-            const tbody = document.getElementById('roster-table-body');
-            tbody.innerHTML = '';
-            const rosterList = currentManager.roster || [];
-            if (rosterList.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="6" class="p-6 text-center text-slate-500">Your roster is empty. Go to Transfer Market to build your team!</td></tr>`;
-                return;
-            }
+    const container = document.getElementById('active-roster-container');
+    if (!container) return;
 
-            rosterList.forEach(name => {
-                const p = players.find(x => x.name === name);
-                if (!p) return;
-                tbody.innerHTML += `
-                    <tr class="hover:bg-slate-800/40 transition">
-                        <td class="p-3.5 font-medium text-white">${p.name}</td>
-                        <td class="p-3.5"><span class="px-2 py-0.5 text-xs rounded bg-slate-800 text-slate-300 font-mono">${p.tour}</span></td>
-                        <td class="p-3.5 text-slate-400">${p.country || 'N/A'}</td>
-                        <td class="p-3.5 font-mono text-amber-400">$${(p.price || 0).toLocaleString()}</td>
-                        <td class="p-3.5 font-mono">${(p.points || 0).toLocaleString()}</td>
-                        <td class="p-3.5 text-right">
-                            <button onclick="sellPlayer('${p.name}')" class="bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 px-3 py-1 rounded text-xs font-semibold transition cursor-pointer">Sell</button>
-                        </td>
+    const mgrRoster = rosters.filter(r => r.manager_id === currentManager.id);
+
+    let html = `
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-800 text-slate-400 text-xs uppercase tracking-wider">
+                        <th class="py-3 px-4">Player Name</th>
+                        <th class="py-3 px-4">Tour</th>
+                        <th class="py-3 px-4">Country</th>
+                        <th class="py-3 px-4">Current Price</th>
+                        <th class="py-3 px-4">Official Points</th>
+                        <th class="py-3 px-4 text-amber-400">Last Week Points</th>
+                        <th class="py-3 px-4 text-right">Action</th>
                     </tr>
-                `;
-            });
-        }
+                </thead>
+                <tbody class="divide-y divide-slate-800/60 text-sm">
+    `;
+
+    if (mgrRoster.length === 0) {
+        html += `<tr><td colspan="7" class="py-6 text-center text-slate-500">Your squad is empty. Visit the Transfer Market to build your 10-player team.</td></tr>`;
+    } else {
+        mgrRoster.forEach(item => {
+            const p = players.find(pl => pl.id == item.player_id);
+            if (!p) return;
+            
+            html += `
+                <tr class="hover:bg-slate-800/30 transition-colors">
+                    <td class="py-4 px-4 font-semibold text-white">${p.name}</td>
+                    <td class="py-4 px-4"><span class="px-2 py-0.5 text-xs rounded bg-slate-800 text-slate-300">${p.tour}</span></td>
+                    <td class="py-4 px-4 text-slate-300">${p.country || ''}</td>
+                    <td class="py-4 px-4 font-medium text-amber-400">$${p.price.toLocaleString()}</td>
+                    <td class="py-4 px-4 text-slate-200">${(p.points || 0).toLocaleString()}</td>
+                    <td class="py-4 px-4 font-bold text-amber-400">+${(p.weekly_points || 0).toLocaleString()}</td>
+                    <td class="py-4 px-4 text-right">
+                        <button onclick="sellPlayer(${p.id})" class="px-3 py-1 bg-red-600/80 hover:bg-red-600 text-white rounded text-xs transition-colors">Sell</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+}
 
         function renderMarket() {
             const tbody = document.getElementById('market-table-body');
