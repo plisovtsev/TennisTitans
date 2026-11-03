@@ -439,7 +439,13 @@
     const container = document.getElementById('active-roster-container');
     if (!container) return;
 
-    const mgrRoster = rosters.filter(r => r.manager_id === currentManager.id);
+    if (!currentManager) {
+        container.innerHTML = `<div class="py-6 text-center text-slate-500">Please log in to view your squad.</div>`;
+        return;
+    }
+
+    // Get the player name array from the manager's roster column
+    const playerNames = currentManager.roster || [];
 
     let html = `
         <div class="overflow-x-auto">
@@ -458,23 +464,35 @@
                 <tbody class="divide-y divide-slate-800/60 text-sm">
     `;
 
-    if (mgrRoster.length === 0) {
-        html += `<tr><td colspan="7" class="py-6 text-center text-slate-500">Your squad is empty. Visit the Transfer Market to build your 10-player team.</td></tr>`;
+    if (playerNames.length === 0) {
+        html += `<tr><td colspan="7" class="py-6 text-center text-slate-500">Your squad is currently empty. Visit the Transfer Market to build your team.</td></tr>`;
     } else {
-        mgrRoster.forEach(item => {
-            const p = players.find(pl => pl.id == item.player_id);
-            if (!p) return;
+        playerNames.forEach(name => {
+            // Find player in the global players array by matching name
+            const p = players.find(pl => pl.name.toLowerCase() === name.toLowerCase());
+            
+            if (!p) {
+                // Fallback display if player details aren't loaded yet
+                html += `
+                    <tr class="hover:bg-slate-800/30 transition-colors">
+                        <td class="py-4 px-4 font-semibold text-white">${name}</td>
+                        <td colspan="5" class="py-4 px-4 text-slate-500">Loading details...</td>
+                        <td class="py-4 px-4 text-right"></td>
+                    </tr>
+                `;
+                return;
+            }
             
             html += `
                 <tr class="hover:bg-slate-800/30 transition-colors">
                     <td class="py-4 px-4 font-semibold text-white">${p.name}</td>
                     <td class="py-4 px-4"><span class="px-2 py-0.5 text-xs rounded bg-slate-800 text-slate-300">${p.tour}</span></td>
                     <td class="py-4 px-4 text-slate-300">${p.country || ''}</td>
-                    <td class="py-4 px-4 font-medium text-amber-400">$${p.price.toLocaleString()}</td>
+                    <td class="py-4 px-4 font-medium text-amber-400">$${(p.price || 0).toLocaleString()}</td>
                     <td class="py-4 px-4 text-slate-200">${(p.points || 0).toLocaleString()}</td>
                     <td class="py-4 px-4 font-bold text-amber-400">+${(p.weekly_points || 0).toLocaleString()}</td>
                     <td class="py-4 px-4 text-right">
-                        <button onclick="sellPlayer(${p.id})" class="px-3 py-1 bg-red-600/80 hover:bg-red-600 text-white rounded text-xs transition-colors">Sell</button>
+                        <button onclick="sellPlayerByName('${p.name}')" class="px-3 py-1 bg-red-600/80 hover:bg-red-600 text-white rounded text-xs transition-colors">Sell</button>
                     </td>
                 </tr>
             `;
