@@ -616,32 +616,32 @@ async function inspectManagerRoster(managerName) {
 
     if (!transferWindowOpen) { alert('Transfer window is closed!'); return; }
     
-    // Fetch latest roster directly to prevent state lag
     const currentRoster = currentManager.roster || [];
-    const rosterSize = currentRoster.length;
+    
+    // Prevent buying the same player twice
+    if (currentRoster.some(pName => pName.toLowerCase() === name.toLowerCase())) {
+        alert('You already have this player in your squad!');
+        return;
+    }
 
+    const rosterSize = currentRoster.length;
     if (rosterSize >= 10) { 
         alert('Roster full (10 max).'); 
         return; 
     }
 
-    // STRICT RULE: If the squad is NOT full yet (0 to 9 players), 
-    // initial setup buys are completely FREE and DO NOT check trades_left.
     const isInitialBuild = rosterSize < 10;
-
     if (!isInitialBuild && currentManager.trades_left <= 0) { 
         alert('No trades left this week.'); 
         return; 
     }
 
-    const p = players.find(x => x.name === name);
+    const p = players.find(x => x.name.toLowerCase() === name.toLowerCase());
     if (!p) return;
     if (currentManager.balance < p.price) { alert('Insufficient budget!'); return; }
 
     const updatedRoster = [...currentRoster, p.name];
     const updatedBalance = currentManager.balance - p.price;
-    
-    // Keep trades at 6 during initial building phase; deduct only during post-setup transfers
     const updatedTrades = isInitialBuild ? 6 : currentManager.trades_left - 1;
 
     const { data, error } = await sb.from('managers').update({
