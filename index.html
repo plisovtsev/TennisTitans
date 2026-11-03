@@ -590,7 +590,19 @@ async function inspectManagerRoster(managerName) {
     if (displayedPlayers.length === 0) {
         html = `<tr><td colspan="7" class="py-6 text-center text-slate-500">No players found. Try adjusting your search or running ingestion.</td></tr>`;
     } else {
+        const currentRoster = currentManager?.roster || [];
+
         displayedPlayers.forEach(p => {
+            // Check if this manager already owns this player
+            const isOwned = currentRoster.some(rName => rName.toLowerCase() === (p.name || '').toLowerCase());
+
+            let actionButton = '';
+            if (isOwned) {
+                actionButton = `<span class="px-3 py-1 bg-slate-800 text-slate-400 rounded text-xs font-semibold">Owned</span>`;
+            } else {
+                actionButton = `<button onclick="buyPlayer('${(p.name || '').replace(/'/g, "\\'")}')" class="px-3 py-1 bg-emerald-600/80 hover:bg-emerald-600 text-white rounded text-xs transition-colors cursor-pointer">Buy</button>`;
+            }
+
             html += `
                 <tr class="hover:bg-slate-800/30 transition-colors">
                     <td class="p-3.5 font-semibold text-white">${p.name || 'Unknown'}</td>
@@ -600,7 +612,7 @@ async function inspectManagerRoster(managerName) {
                     <td class="p-3.5 text-slate-200">${(p.points || 0).toLocaleString()}</td>
                     <td class="p-3.5 font-bold text-amber-400">+${(p.weekly_points || 0).toLocaleString()}</td>
                     <td class="p-3.5 text-right">
-                        <button onclick="buyPlayer('${(p.name || '').replace(/'/g, "\\'")}')" class="px-3 py-1 bg-emerald-600/80 hover:bg-emerald-600 text-white rounded text-xs transition-colors cursor-pointer">Buy</button>
+                        ${actionButton}
                     </td>
                 </tr>
             `;
