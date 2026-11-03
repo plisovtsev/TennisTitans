@@ -773,6 +773,8 @@
     const lines = rawText.split('\n');
     let updatedCount = 0;
 
+    const cleanStr = str => str ? str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
+
     for (let line of lines) {
         const cols = line.split(',').map(c => c.trim());
         if (cols.length < 4 || cols[0].toLowerCase().includes('name') || cols[0] === '') continue;
@@ -785,7 +787,7 @@
 
         let targetPrice = newPoints * 100;
 
-        const existing = players.find(p => p.name.toLowerCase() === name.toLowerCase());
+        const existing = players.find(p => cleanStr(p.name) === cleanStr(name));
         
         if (existing) {
             const maxP = existing.price * 1.10;
@@ -806,7 +808,8 @@
     await fetchPlayers();
     await fetchManagers();
 
-    const currentWeekTitle = activeWeekText || 'Week 1';
+    const weekInputElem = document.getElementById('admin-week-select') || document.getElementById('active-week-input');
+    const currentWeekTitle = weekInputElem ? weekInputElem.value : (activeWeekText || 'Week 1');
 
     let scoredManagers = [];
     for (let mgr of managersList) {
@@ -816,13 +819,32 @@
         let weekScore = 0;
         if (rosterArr.length >= 10) {
             rosterArr.forEach(rName => {
-                const found = players.find(p => p.name.toLowerCase() === rName.toLowerCase());
-                if (found) weekScore += (found.weekly_points || 0);
+                const found = players.find(p => cleanStr(p.name) === cleanStr(rName));
+                if (found) {
+                    weekScore += (found.weekly_points || 0);
+                }
             });
         }
-        scoredManagers.push({ username: mgr.username, score: weekScore });
+        
+        const username = mgr.username || mgr.name;
+        scoredManagers.push({ 
+            username, 
+            score: weekScore,
+            roster: rosterArr 
+        });
+
+        // Save every manager's weekly score and roster snapshot to Supabase
+        await sb.from('weekly_manager_scores').upsert([
+            {
+                week: currentWeekTitle,
+                manager_name: username,
+                score: weekScore,
+                roster_snapshot: rosterArr
+            }
+        ], { onConflict: 'week, manager_name' });
     }
 
+    // Sort descending by calculated weekly score for podium calculation
     scoredManagers.sort((a, b) => b.score - a.score);
 
     const top3 = scoredManagers.slice(0, 3).map((m, idx) => ({
@@ -832,21 +854,22 @@
     }));
 
     if (top3.length > 0) {
-        await sb.from('weekly_winners').upsert([
+        await sb.from('weekly_winners').delete().eq('week', currentWeekTitle);
+        await sb.from('weekly_winners').insert([
             {
                 week: currentWeekTitle,
                 manager_name: top3[0].manager,
                 score: top3[0].score,
                 podium: top3
             }
-        ], { onConflict: 'week' });
+        ]);
     }
 
     renderMarket();
     renderRoster();
     renderLeaderboard();
 
-    alert(`Success!\n- Updated ${updatedCount} players.\n- Winner: ${top3[0].manager} (+${top3[0].score} pts)`);
+    alert(`Success!\n- Updated ${updatedCount} players.\n- Saved all manager weekly scores for ${currentWeekTitle}!\n- Champion: ${top3[0].manager} (+${top3[0].score} pts)`);
 }
     </script>
 </body>
