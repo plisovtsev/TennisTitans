@@ -437,7 +437,7 @@
             renderMarket();
         }
 
-        function renderRoster() {
+       function renderRoster() {
     const container = document.getElementById('roster-table-body');
     if (!container) return;
 
@@ -446,20 +446,17 @@
         return;
     }
 
-    // Get the player name array from the manager's roster column in Supabase
     const playerNames = currentManager.roster || [];
-
     let html = '';
+    let totalWeeklyPointsSum = 0;
 
     if (playerNames.length === 0) {
         html = `<tr><td colspan="7" class="py-6 text-center text-slate-500">Your squad is currently empty. Visit the Transfer Market to build your team.</td></tr>`;
     } else {
         playerNames.forEach(name => {
-            // Find player details from the global players array by matching name
             const p = players.find(pl => pl.name.toLowerCase() === name.toLowerCase());
             
             if (!p) {
-                // Fallback if player data hasn't loaded yet
                 html += `
                     <tr class="hover:bg-slate-800/30 transition-colors">
                         <td class="p-3.5 font-semibold text-white">${name}</td>
@@ -469,6 +466,9 @@
                 `;
                 return;
             }
+
+            const weeklyPts = p.weekly_points || 0;
+            totalWeeklyPointsSum += weeklyPts;
             
             html += `
                 <tr class="hover:bg-slate-800/30 transition-colors">
@@ -477,13 +477,22 @@
                     <td class="p-3.5 text-slate-300">${p.country || ''}</td>
                     <td class="p-3.5 font-medium text-amber-400">$${(p.price || 0).toLocaleString()}</td>
                     <td class="p-3.5 text-slate-200">${(p.points || 0).toLocaleString()}</td>
-                    <td class="p-3.5 font-bold text-amber-400">+${(p.weekly_points || 0).toLocaleString()}</td>
+                    <td class="p-3.5 font-bold text-amber-400">+${weeklyPts.toLocaleString()}</td>
                     <td class="p-3.5 text-right">
                         <button onclick="sellPlayer('${(p.name || '').replace(/'/g, "\\'")}')" class="px-3 py-1 bg-red-600/80 hover:bg-red-600 text-white rounded text-xs transition-colors cursor-pointer">Sell</button>
                     </td>
                 </tr>
             `;
         });
+
+        // Add summary row at the bottom of the table
+        html += `
+            <tr class="bg-slate-950/80 border-t border-slate-800 font-bold">
+                <td colspan="5" class="p-3.5 text-right text-slate-300 uppercase tracking-wider text-xs">Total Weekly Points:</td>
+                <td class="p-3.5 text-amber-400 text-base">+${totalWeeklyPointsSum.toLocaleString()}</td>
+                <td></td>
+            </tr>
+        `;
     }
 
     container.innerHTML = html;
