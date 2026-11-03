@@ -702,7 +702,6 @@
     
     await fetchManagers();
 
-    // Fetch all historical weekly manager scores from the new table
     const { data: allWeeklyScores } = await sb.from('weekly_manager_scores').select('*');
     
     const seasonPointsMap = {};
@@ -717,7 +716,7 @@
     const cleanStr = str => str ? str.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") : "";
 
     const userList = managersList.map(m => {
-        if (m.role === 'admin') return null;
+        // ADMIN FILTER REMOVED: Admins are now fully included in the leaderboard!
         let portfolioValue = m.balance || 0;
         const rosterArr = m.roster || [];
         
@@ -736,9 +735,8 @@
             portfolioValue, 
             score: totalSeasonPts 
         };
-    }).filter(Boolean);
+    });
 
-    // Sort descending by true cumulative season points
     userList.sort((a, b) => b.score - a.score);
 
     userList.forEach((item, index) => {
